@@ -11,6 +11,9 @@ export function Icon({ name = 'arrow', className = 'size-5' }) {
         arrow: 'M5 12h14m-5-5 5 5-5 5',
         menu: 'M4 6h16M4 12h16M4 18h16',
         close: 'm6 6 12 12M6 18 18 6',
+        search: 'm21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z',
+        science: 'M9 3h6M10 3v5l-5 9a2.7 2.7 0 0 0 2.4 4h9.2a2.7 2.7 0 0 0 2.4-4l-5-9V3M8 15h8',
+        calculator: 'M6 3h12v18H6zM9 7h6v3H9zM9 14h.01M12 14h.01M15 14h.01M9 17h.01M12 17h.01M15 17h.01',
     };
     return <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={paths[name] || paths.arrow} /></svg>;
 }
