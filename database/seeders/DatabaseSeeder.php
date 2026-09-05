@@ -15,5 +15,10 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(LearningDataSeeder::class);
+        $this->call(TopicGroundingSeeder::class);
+        $this->call(HomeworkQuestionSeeder::class);
+        $this->call(PhysicsQuizQuestionSeeder::class);
+        $this->call(AssignmentSeeder::class);
+        $this->call(PracticeSetSeeder::class);
     }
 }

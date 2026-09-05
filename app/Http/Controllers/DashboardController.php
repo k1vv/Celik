@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Mastery;
 use App\Services\AdaptivePracticeService;
+use App\Services\GapSummaryService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public function __construct(private GapSummaryService $gapSummary) {}
+
     public function index(Request $request): Response
     {
         $teacher = $request->user();
@@ -24,6 +27,7 @@ class DashboardController extends Controller
                 'classroom' => null,
                 'heatmap' => ['students' => [], 'skills' => [], 'cells' => []],
                 'gaps' => [],
+                'gapSummary' => [],
             ]);
         }
 
@@ -83,6 +87,7 @@ class DashboardController extends Controller
                 'cells' => $cells,
             ],
             'gaps' => $gaps,
+            'gapSummary' => $this->gapSummary->forStudents($students->pluck('id')),
         ]);
     }
 }

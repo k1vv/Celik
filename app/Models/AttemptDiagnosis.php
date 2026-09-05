@@ -9,7 +9,7 @@ class AttemptDiagnosis extends Model
 {
     const UPDATED_AT = null;
 
-    protected $fillable = ['attempt_id', 'dimension', 'tag'];
+    protected $fillable = ['attempt_id', 'dimension', 'tag', 'evidence'];
 
     protected function casts(): array
     {

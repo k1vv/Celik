@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PracticeSet;
 use App\Models\Question;
 use App\Services\AdaptivePracticeService;
+use App\Services\DiagnosisService;
+use App\Services\PracticeSetService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -11,7 +14,11 @@ use Inertia\Response;
 
 class PracticeController extends Controller
 {
-    public function __construct(private AdaptivePracticeService $adaptive) {}
+    public function __construct(
+        private AdaptivePracticeService $adaptive,
+        private DiagnosisService $diagnosis,
+        private PracticeSetService $practiceSets,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -23,6 +30,7 @@ class PracticeController extends Controller
                 'classroom' => null,
                 'question' => null,
                 'masteries' => [],
+                'practiceSets' => [],
             ]);
         }
 
@@ -50,6 +58,7 @@ class PracticeController extends Controller
                 'difficulty' => $question->difficulty,
             ] : null,
             'masteries' => $masteries,
+            'practiceSets' => $this->practiceSets->forStudent($student, $classroom),
         ]);
     }
 
@@ -58,15 +67,38 @@ class PracticeController extends Controller
         $data = $request->validate([
             'question_id' => ['required', 'integer', 'exists:questions,id'],
             'selected_option' => ['required', 'string'],
+            'practice_set_id' => ['nullable', 'integer', 'exists:practice_sets,id'],
         ]);
 
         $question = Question::findOrFail($data['question_id']);
-        $isCorrect = $question->correct_option === $data['selected_option'];
+        $this->authorize('attemptQuiz', $question);
 
-        $this->adaptive->recordAttempt($request->user(), $question, $isCorrect);
+        $practiceSet = null;
+        if (! empty($data['practice_set_id'])) {
+            $practiceSet = PracticeSet::findOrFail($data['practice_set_id']);
+            $this->authorize('attempt', $practiceSet);
+        }
+
+        $diagnosis = $this->diagnosis->diagnose($question, $data['selected_option']);
+
+        $attempt = $this->adaptive->recordAttempt($request->user(), $question, $diagnosis['correct'], $practiceSet?->id);
+
+        if ($diagnosis['conceptual']['tag']) {
+            $attempt->diagnoses()->create([
+                'dimension' => 'conceptual',
+                'tag' => $diagnosis['conceptual']['tag'],
+            ]);
+        }
+
+        if (! $diagnosis['curriculum']['mastered'] && $diagnosis['curriculum']['kssm_code']) {
+            $attempt->diagnoses()->create([
+                'dimension' => 'curriculum',
+                'tag' => $diagnosis['curriculum']['kssm_code'],
+            ]);
+        }
 
         return redirect()->route('practice')->with([
-            'result' => $isCorrect ? 'correct' : 'incorrect',
+            'result' => $diagnosis['correct'] ? 'correct' : 'incorrect',
             'correct_option' => $question->correct_option,
         ]);
     }

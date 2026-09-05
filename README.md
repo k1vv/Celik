@@ -24,22 +24,27 @@ Clone the repo, then from the project root:
 cp .env.example .env
 ```
 
+Set `GEMINI_API_KEY` in `.env` if you want the homework diagnosis feature to work (a free key is available at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)) — the adaptive quiz path works fine without it, but submitting homework will fail on every request until it's set. See `architecture/architecture.md` and `architecture/engine.md` for how the diagnosis pipeline works.
+
 Bring up the containers (first run builds the PHP image and pulls MySQL — expect a few minutes):
 
 ```bash
 docker compose up -d
 ```
 
-Once the containers are healthy, install dependencies and prepare the app inside the container:
+Once the containers are healthy, install dependencies inside the container (this first command has to use `docker compose exec` — `vendor/bin/sail` doesn't exist until `composer install` puts it there):
 
 ```bash
 docker compose exec laravel.test composer install
-docker compose exec laravel.test php artisan key:generate
-docker compose exec laravel.test php artisan migrate --seed
-docker compose exec laravel.test npm install
 ```
 
-> If you have `vendor/bin/sail` available after `composer install`, you can use the shorter `./vendor/bin/sail <command>` form instead of `docker compose exec laravel.test <command>` for everything below.
+From here on, prefer `./vendor/bin/sail <command>` over `docker compose exec laravel.test <command>` — both work, but a bare `docker compose exec`/`docker exec` defaults to the container's root user, while the app itself actually runs as `sail`. Running commands as root can leave root-owned files (storage dirs, caches) that the real `sail`-owned process then can't write to — this has caused a real 500 error before. `./vendor/bin/sail` runs everything as `sail` automatically:
+
+```bash
+./vendor/bin/sail artisan key:generate
+./vendor/bin/sail artisan migrate --seed
+./vendor/bin/sail npm install
+```
 
 ## Running the app
 
@@ -48,26 +53,28 @@ The `laravel.test` container already serves the backend — visit **http://local
 The frontend needs its own dev server for hot-reloading. Start it inside the container (it must run there, not on the host, because `compose.yaml` reserves host port 5173 for the container):
 
 ```bash
-docker compose exec laravel.test npm run dev
+./vendor/bin/sail npm run dev
 ```
 
-Leave that running in its own terminal while you work. Visit http://localhost:8000/login — demo accounts (password: `password`) are seeded by `LearningDataSeeder`:
+Leave that running in its own terminal while you work. Visit http://localhost:8000/login — demo accounts (password: `password`) are seeded by `LearningDataSeeder` (Math) and `AssignmentSeeder`/`PracticeSetSeeder` (Physics, including a real homework submission and two real practice sets to try):
 
-- Teacher — `teacher@example.com`
-- Student — `student1@example.com`
+- Teacher — `teacher@example.com` (Math)
+- Student — `student1@example.com` (Math)
+- Physics teacher — `physics.teacher@example.com`
+- Physics student — `physics.student1@example.com` (has "Homework 1" waiting at `/student/homework/submit`, and two real practice sets — "Thermal Equilibrium Practice", "Specific Heat Capacity Practice" — at `/practice`)
 
 New accounts can also be created at `/register`.
 
 ## Running tests
 
 ```bash
-docker compose exec laravel.test php artisan test
+./vendor/bin/sail artisan test
 ```
 
 Feature tests render real Inertia pages, so they need a built asset manifest at least once:
 
 ```bash
-docker compose exec laravel.test npm run build
+./vendor/bin/sail npm run build
 ```
 
 Rerun the build after changing anything under `resources/js` if you're only running `php artisan test` (rather than also using `npm run dev`) between changes.

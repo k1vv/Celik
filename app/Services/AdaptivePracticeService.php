@@ -6,6 +6,7 @@ use App\Models\Attempt;
 use App\Models\Classroom;
 use App\Models\Mastery;
 use App\Models\Question;
+use App\Models\Skill;
 use App\Models\User;
 
 /**
@@ -69,7 +70,7 @@ class AdaptivePracticeService
     /**
      * Record the outcome of an attempt and update the student's mastery estimate.
      */
-    public function recordAttempt(User $student, Question $question, bool $isCorrect): Attempt
+    public function recordAttempt(User $student, Question $question, bool $isCorrect, ?int $practiceSetId = null): Attempt
     {
         $mastery = Mastery::firstOrCreate(
             ['user_id' => $student->id, 'skill_id' => $question->skill_id],
@@ -94,6 +95,7 @@ class AdaptivePracticeService
         return Attempt::create([
             'user_id' => $student->id,
             'question_id' => $question->id,
+            'practice_set_id' => $practiceSetId,
             'skill_id' => $question->skill_id,
             'is_correct' => $isCorrect,
             'difficulty_at_attempt' => $question->difficulty,
@@ -112,10 +114,25 @@ class AdaptivePracticeService
             return $masteredSkills->random();
         }
 
-        return $skills->sortBy(fn ($skill) => $masteries[$skill->id]->mastery_score)->first();
+        $weakest = $skills->sortBy(fn ($skill) => $masteries[$skill->id]->mastery_score)->first();
+
+        return $this->rootCausePrerequisite($weakest, $masteries) ?? $weakest;
     }
 
-    private function pickQuestionForDifficulty(\App\Models\Skill $skill, float $masteryScore): ?Question
+    /**
+     * Per engine.md §8: when the weakest skill has a prerequisite that's
+     * also below the struggling threshold, practice should target that
+     * root cause first rather than drilling the downstream symptom.
+     */
+    private function rootCausePrerequisite(Skill $skill, $masteries): ?Skill
+    {
+        return $skill->prerequisites->first(
+            fn ($prerequisite) => isset($masteries[$prerequisite->id])
+                && $masteries[$prerequisite->id]->mastery_score < self::STRUGGLING_THRESHOLD
+        );
+    }
+
+    private function pickQuestionForDifficulty(Skill $skill, float $masteryScore): ?Question
     {
         $targetDifficulty = (int) max(1, min(5, round(1 + $masteryScore * 4)));
 

@@ -7,7 +7,14 @@ function cellColor(score) {
     return 'bg-rose-500';
 }
 
-export default function Dashboard({ classrooms, classroom, heatmap, gaps }) {
+const DIMENSION_LABELS = {
+    conceptual: 'Misconception',
+    curriculum: 'KSSM standard not mastered',
+    method: 'Answering method',
+    reasoning: 'Reasoning',
+};
+
+export default function Dashboard({ classrooms, classroom, heatmap, gaps, gapSummary }) {
     if (!classroom) {
         return (
             <Layout>
@@ -56,6 +63,34 @@ export default function Dashboard({ classrooms, classroom, heatmap, gaps }) {
                                 <span className="text-rose-900">{gap.skill}</span>
                                 <span className="text-rose-700">
                                     {gap.struggling_count}/{gap.total} students ({gap.struggling_pct}%)
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {gapSummary?.length > 0 && (
+                <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <h2 className="text-sm font-semibold text-slate-800">Diagnosed gaps</h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                        Not just who's struggling — why. Each row is a distinct misconception or missing standard,
+                        and how many students share it.
+                    </p>
+                    <div className="mt-3 space-y-2">
+                        {gapSummary.map((row) => (
+                            <div
+                                key={`${row.dimension}-${row.tag}`}
+                                className="flex items-center justify-between text-sm"
+                            >
+                                <span className="text-slate-700">
+                                    <span className="mr-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                                        {DIMENSION_LABELS[row.dimension] ?? row.dimension}
+                                    </span>
+                                    {row.tag}
+                                </span>
+                                <span className="font-medium text-slate-700">
+                                    {row.student_count} student{row.student_count === 1 ? '' : 's'}
                                 </span>
                             </div>
                         ))}

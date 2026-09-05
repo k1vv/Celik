@@ -28,6 +28,17 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        // Verified working against a real API key as of this session.
+        // 'gemini-2.5-flash'/'gemini-2.5-flash-lite' both 404 as "no longer
+        // available to new users" despite still being listed by the models
+        // endpoint - Google's error response itself pointed at this model.
+        // 'gemini-flash-latest' (the "current recommended" alias) was
+        // consistently 503 (overloaded) across retries at time of testing.
+        'model' => env('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

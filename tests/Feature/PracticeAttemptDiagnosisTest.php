@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Classroom;
 use App\Models\Question;
 use App\Models\Skill;
 use App\Models\Subject;
@@ -28,10 +29,23 @@ class PracticeAttemptDiagnosisTest extends TestCase
         ]);
     }
 
+    /** Enrolls $student in a classroom for $question's subject, per QuestionPolicy::attemptQuiz. */
+    private function enrollInSubject(Question $question, User $student): void
+    {
+        $classroom = Classroom::create([
+            'teacher_id' => User::factory()->create(['role' => 'teacher'])->id,
+            'subject_id' => $question->skill->subject_id,
+            'name' => 'Form 4 Physics',
+            'join_code' => 'TEST01',
+        ]);
+        $classroom->students()->attach($student);
+    }
+
     public function test_a_wrong_answer_records_a_conceptual_and_curriculum_diagnosis(): void
     {
         $student = User::factory()->create(['role' => 'student']);
         $question = $this->makeQuestion();
+        $this->enrollInSubject($question, $student);
 
         $this->actingAs($student)->post('/practice', [
             'question_id' => $question->id,
@@ -57,6 +71,7 @@ class PracticeAttemptDiagnosisTest extends TestCase
     {
         $student = User::factory()->create(['role' => 'student']);
         $question = $this->makeQuestion();
+        $this->enrollInSubject($question, $student);
 
         $this->actingAs($student)->post('/practice', [
             'question_id' => $question->id,

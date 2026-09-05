@@ -61,8 +61,8 @@ class DashboardGapSummaryTest extends TestCase
         $response->assertInertia(fn ($page) => $page
             ->component('Dashboard')
             ->where('gapSummary', [
-                ['dimension' => 'conceptual', 'tag' => 'metal_inherently_colder', 'student_count' => 2],
-                ['dimension' => 'curriculum', 'tag' => '9.2.2', 'student_count' => 2],
+                ['dimension' => 'conceptual', 'tag' => 'metal_inherently_colder', 'student_count' => 2, 'skill_id' => $skill->id, 'relation' => null, 'related_skill_id' => null],
+                ['dimension' => 'curriculum', 'tag' => '9.2.2', 'student_count' => 2, 'skill_id' => $skill->id, 'relation' => null, 'related_skill_id' => null],
             ])
         );
     }
