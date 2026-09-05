@@ -1,5 +1,6 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
-import Layout from '../Layout';
+import { Fragment } from 'react';
+import StudentDashboard from '../Components/Student/StudentDashboard';
 
 function MasteryBar({ skill, mastery_score }) {
     const pct = Math.round(mastery_score * 100);
@@ -18,7 +19,11 @@ function MasteryBar({ skill, mastery_score }) {
     );
 }
 
-export default function Practice({ classroom, question, masteries }) {
+export default function Practice(props) {
+    return <StudentDashboard classroom={props.classroom}><PracticeSession {...props} /></StudentDashboard>;
+}
+
+function PracticeSession({ classroom, question, masteries }) {
     const { flash } = usePage().props;
     const { data, setData, post, processing } = useForm({
         question_id: question?.id ?? null,
@@ -35,15 +40,15 @@ export default function Practice({ classroom, question, masteries }) {
 
     if (!classroom) {
         return (
-            <Layout>
+            <Fragment>
                 <Head title="Practice" />
                 <p className="text-slate-600">You're not enrolled in a class yet. Ask your teacher for a join code.</p>
-            </Layout>
+            </Fragment>
         );
     }
 
     return (
-        <Layout>
+        <Fragment>
             <Head title="Practice" />
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
                 <div className="lg:col-span-2">
@@ -100,6 +105,6 @@ export default function Practice({ classroom, question, masteries }) {
                     </div>
                 </div>
             </div>
-        </Layout>
+        </Fragment>
     );
 }
