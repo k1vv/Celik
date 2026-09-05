@@ -18,7 +18,7 @@ class AuthenticationTest extends TestCase
         $response->assertInertia(fn ($page) => $page->component('auth/Login'));
     }
 
-    public function test_a_student_can_authenticate_and_is_redirected_to_practice(): void
+    public function test_a_student_can_authenticate_and_is_redirected_to_the_student_dashboard(): void
     {
         $user = User::factory()->create(['role' => 'student']);
 
@@ -28,7 +28,7 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertAuthenticatedAs($user);
-        $response->assertRedirect(route('practice'));
+        $response->assertRedirect(route('student.dashboard'));
     }
 
     public function test_a_teacher_can_authenticate_and_is_redirected_to_the_dashboard(): void
@@ -89,7 +89,7 @@ class AuthenticationTest extends TestCase
         $student = User::factory()->create(['role' => 'student']);
         $teacher = User::factory()->create(['role' => 'teacher']);
 
-        $this->actingAs($student)->get('/login')->assertRedirect(route('practice'));
+        $this->actingAs($student)->get('/login')->assertRedirect(route('student.dashboard'));
         $this->actingAs($teacher)->get('/login')->assertRedirect(route('dashboard'));
     }
 
@@ -114,6 +114,8 @@ class AuthenticationTest extends TestCase
     {
         $this->get('/dashboard')->assertRedirect('/login');
         $this->get('/practice')->assertRedirect('/login');
+        $this->get('/student/dashboard')->assertRedirect('/login');
+        $this->get('/student/homework/submit')->assertRedirect('/login');
     }
 
     public function test_a_student_cannot_view_the_teacher_dashboard(): void
@@ -128,5 +130,30 @@ class AuthenticationTest extends TestCase
         $teacher = User::factory()->create(['role' => 'teacher']);
 
         $this->actingAs($teacher)->get('/practice')->assertForbidden();
+    }
+
+    public function test_student_pages_render_their_distinct_inertia_pages(): void
+    {
+        $student = User::factory()->create(['role' => 'student']);
+
+        $this->actingAs($student)->get('/student/dashboard')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('StudentDashboard'));
+
+        $this->actingAs($student)->get('/practice')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Practice'));
+
+        $this->actingAs($student)->get('/student/homework/submit')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('SubmitHomework'));
+    }
+
+    public function test_a_teacher_cannot_view_student_dashboard_or_homework_submission_pages(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+
+        $this->actingAs($teacher)->get('/student/dashboard')->assertForbidden();
+        $this->actingAs($teacher)->get('/student/homework/submit')->assertForbidden();
     }
 }

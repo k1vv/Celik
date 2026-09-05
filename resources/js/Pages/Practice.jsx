@@ -20,7 +20,7 @@ function MasteryBar({ skill, mastery_score }) {
 }
 
 export default function Practice(props) {
-    return <StudentDashboard classroom={props.classroom}><PracticeSession {...props} /></StudentDashboard>;
+    return <StudentDashboard classroom={props.classroom} initialView="practice"><PracticeSession {...props} /></StudentDashboard>;
 }
 
 function PracticeSession({ classroom, question, masteries }) {

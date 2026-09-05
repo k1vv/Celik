@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -19,7 +20,7 @@ class RegistrationTest extends TestCase
         $response->assertInertia(fn ($page) => $page->component('auth/Register'));
     }
 
-    public function test_a_student_can_register_and_is_redirected_to_practice(): void
+    public function test_a_student_can_register_and_is_redirected_to_the_student_dashboard(): void
     {
         $response = $this->post('/register', [
             'name' => 'Ada Lovelace',
@@ -34,7 +35,7 @@ class RegistrationTest extends TestCase
             'email' => 'ada@example.com',
             'role' => 'student',
         ]);
-        $response->assertRedirect(route('practice'));
+        $response->assertRedirect(route('student.dashboard'));
     }
 
     public function test_a_teacher_can_register_and_is_redirected_to_the_dashboard(): void
@@ -67,7 +68,7 @@ class RegistrationTest extends TestCase
 
         $user = User::where('email', 'ada@example.com')->firstOrFail();
 
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('password', $user->password));
+        $this->assertTrue(Hash::check('password', $user->password));
     }
 
     public function test_registration_requires_a_unique_email(): void
@@ -120,7 +121,7 @@ class RegistrationTest extends TestCase
     {
         $user = User::factory()->create(['role' => 'student']);
 
-        $this->actingAs($user)->get('/register')->assertRedirect(route('practice'));
-        $this->actingAs($user)->post('/register', [])->assertRedirect(route('practice'));
+        $this->actingAs($user)->get('/register')->assertRedirect(route('student.dashboard'));
+        $this->actingAs($user)->post('/register', [])->assertRedirect(route('student.dashboard'));
     }
 }

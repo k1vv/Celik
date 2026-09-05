@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PracticeController;
+use App\Http\Controllers\StudentDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -26,6 +27,8 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware('role:student')->group(function () {
+        Route::get('student/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
+        Route::get('student/homework/submit', [StudentDashboardController::class, 'submitHomework'])->name('student.homework.submit');
         Route::get('practice', [PracticeController::class, 'index'])->name('practice');
         Route::post('practice', [PracticeController::class, 'store'])->name('practice.answer');
     });
