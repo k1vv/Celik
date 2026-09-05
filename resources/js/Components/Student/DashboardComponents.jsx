@@ -8,6 +8,8 @@ export function Icon({ name = 'arrow', className = 'size-5' }) {
         due: 'M4 5h16v16H4zM8 3v4m8-4v4M4 11h16',
         settings: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2',
         logout: 'M9 3H4v18h5m5-14 5 5-5 5M8 12h11',
+        bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 13h4',
+        chevron: 'm7 10 5 5 5-5',
         arrow: 'M5 12h14m-5-5 5 5-5 5',
         menu: 'M4 6h16M4 12h16M4 18h16',
         close: 'm6 6 12 12M6 18 18 6',
