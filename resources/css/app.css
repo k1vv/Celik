@@ -7,3 +7,100 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+@theme {
+    --color-auth-page: #f7f7f1;
+    --color-auth-cream: #f2f3e5;
+    --color-auth-ink: #1e2b23;
+    --color-auth-green: #1d6a47;
+    --color-auth-soft: #dcefd8;
+    --color-auth-lime: #dae96b;
+    --color-auth-border: #e5e8de;
+    --color-auth-muted: #626d64;
+}
+
+@layer components {
+    .auth-input {
+        @apply min-h-12 w-full rounded-xl border border-auth-border bg-auth-page/50 px-4 py-3 text-sm text-auth-ink placeholder:text-auth-muted focus:border-auth-green focus:outline-none focus:ring-2 focus:ring-auth-green/20;
+    }
+
+    .auth-focus {
+        @apply focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-auth-green;
+    }
+}
+
+/* Login-only sizing: the rest of the application retains normal page scrolling. */
+.auth-grid { grid-template-rows: auto minmax(0, 1fr); }
+.auth-showcase { padding: 16px 24px; gap: 10px; }
+.auth-showcase-title { margin-top: 6px; font-size: 20px; line-height: 1.15; }
+.auth-showcase-description, .auth-badge, .auth-eyebrow { display: none; }
+.auth-showcase-controls { margin-top: 6px; }
+.auth-form-panel { padding-block: 16px; }
+.auth-input { min-height: 44px; padding-block: 10px; }
+.auth-slide { animation: auth-slide-in 450ms ease-out both; }
+
+@keyframes auth-slide-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (min-width: 1024px) {
+    .auth-grid { grid-template-rows: minmax(0, 1fr); }
+    .auth-showcase { padding: clamp(24px, 4dvh, 48px); gap: 16px; }
+    .auth-visual { padding-block: 12px; }
+    .auth-showcase-title { min-height: 2.3em; max-width: 460px; font-size: clamp(30px, 4.3dvh, 44px); }
+    .auth-showcase-description { display: block; max-width: 420px; min-height: 4.875em; margin-top: 12px; }
+    .auth-eyebrow, .auth-badge { display: block; }
+    .auth-showcase-controls { margin-top: 12px; }
+}
+
+@media (min-width: 1024px) and (max-height: 740px) {
+    .auth-showcase { padding: 24px; gap: 8px; }
+    .auth-showcase-title { font-size: 30px; }
+    .auth-showcase-description { margin-top: 8px; }
+    .auth-preview { max-width: 310px; padding: 8px; }
+    .auth-preview-inner { padding: 12px; }
+}
+
+@media (max-width: 1023px) {
+    .auth-showcase { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 16px; }
+    .auth-showcase-title { min-height: 2.3em; font-size: 18px; max-width: 340px; }
+    .auth-showcase-controls { justify-content: flex-start; }
+    .auth-form-content h1 { font-size: 26px; }
+}
+
+@media (max-height: 740px) {
+    .auth-form-panel { padding-block: 10px; }
+    .auth-form-content .auth-intro { margin-top: 4px; line-height: 1.4; }
+    .auth-form, .auth-register, .auth-demo { margin-top: 10px; }
+    .auth-divider { margin-block: 8px; }
+    .auth-form-content label { margin-bottom: 4px; }
+}
+
+@media (max-width: 1023px) and (max-height: 700px) {
+    .auth-page { padding: 6px; }
+    .auth-showcase { padding: 10px 20px; }
+    .auth-showcase-title { font-size: 16px; }
+    .auth-showcase-controls { display: none; }
+    .auth-form-panel { padding-block: 8px; }
+    .auth-form-content .auth-intro { font-size: 12px; }
+    .auth-form-content h1 { font-size: 24px; }
+}
+
+@media (max-height: 590px) {
+    .auth-grid { grid-template-rows: minmax(0, 1fr); }
+    .auth-showcase { display: none; }
+    .auth-grid { grid-template-columns: minmax(0, 1fr); }
+    .auth-form-content .auth-intro, .auth-divider, .auth-school-button, #school-id-note { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .auth-slide { animation: none; }
+}
+
+@media (max-height: 480px) {
+    .auth-form-content h1, .auth-demo, .auth-register { display: none; }
+    .auth-form { margin-top: 0; }
+    .auth-form-content #remember-note { display: none; }
+    .auth-form-content .auth-input { min-height: 40px; padding-block: 8px; }
+}
