@@ -1,65 +1,67 @@
+import { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
+import AuthPageShell from '../../Components/Auth/AuthPageShell';
+import AuthShowcasePanel from '../../Components/Auth/AuthShowcasePanel';
+import useShowcase from '../../Components/Auth/useShowcase';
+import { showcaseSlides } from '../../Components/Auth/showcaseSlides';
+import PasswordField from '../../Components/Auth/PasswordField';
+import RoleSegmentedControl from '../../Components/Auth/RoleSegmentedControl';
 
 export default function Login() {
-    const { data, setData, post, processing, errors } = useForm({
-        email: '',
-        password: '',
-    });
+    // This selection changes the presentation only; the account determines its role.
+    const [selectedRole, setSelectedRole] = useState('student');
+    const showcase = useShowcase();
 
-    const submit = (e) => {
-        e.preventDefault();
+    const handleRoleChange = (role) => {
+        setSelectedRole(role);
+        const slideId = role === 'student' ? 'adaptive-practice' : 'classroom-insights';
+        const slideIndex = showcaseSlides.findIndex((slide) => slide.id === slideId);
+        showcase.goToSlide(slideIndex < 0 ? 0 : slideIndex);
+    };
+    const { data, setData, post, processing, errors } = useForm({ email: '', password: '' });
+
+    const submit = (event) => {
+        event.preventDefault();
         post('/login');
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <AuthPageShell>
             <Head title="Log in" />
-            <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-                <h1 className="text-xl font-semibold">Celik</h1>
-                <p className="mt-1 text-sm text-slate-500">Adaptive practice &amp; class-wide progress tracking.</p>
-
-                <form onSubmit={submit} className="mt-6 space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Email</label>
-                        <input
-                            type="email"
-                            value={data.email}
-                            onChange={(e) => setData('email', e.target.value)}
-                            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-                        />
-                        {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+            <AuthShowcasePanel activeSlide={showcase.activeSlide} onSlideChange={showcase.goToSlide} paused={showcase.paused} onPauseChange={showcase.setPaused} hovered={showcase.hovered} onHoverChange={showcase.setHovered} />
+            <LoginFormPanel>
+                <h1 className="text-3xl font-semibold tracking-tight">Welcome back</h1>
+                <p className="auth-intro mt-2 text-sm leading-relaxed text-auth-muted">Sign in to hand in homework, or to review your class.</p>
+                <form onSubmit={submit} className="auth-form mt-4">
+                    <RoleSegmentedControl value={selectedRole} onChange={handleRoleChange} />
+                    <div className="mt-3">
+                        <label htmlFor="email" className="mb-2 block text-sm font-medium">Email</label>
+                        <input id="email" name="email" type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={data.email} onChange={(event) => setData('email', event.target.value)} placeholder={selectedRole === 'student' ? 'student@school.edu' : 'teacher@school.edu'} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'email-error' : undefined} className="auth-input" />
+                        <p id="email-error" aria-live="polite" className="mt-1 min-h-4 text-xs text-red-700">{errors.email}</p>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Password</label>
-                        <input
-                            type="password"
-                            value={data.password}
-                            onChange={(e) => setData('password', e.target.value)}
-                            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
-                        />
+                    <div className="mt-3"><PasswordField value={data.password} onChange={(event) => setData('password', event.target.value)} error={errors.password} /></div>
+                    <div className="mt-2 text-xs text-auth-muted">
+                        <label htmlFor="remember" className="flex items-center gap-2"><input id="remember" type="checkbox" checked disabled aria-describedby="remember-note" className="size-4 accent-auth-green" />Keep me signed in</label>
+                        <p id="remember-note" className="mt-1.5">Always enabled for Celik accounts.</p>
                     </div>
-                    <button
-                        type="submit"
-                        disabled={processing}
-                        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-60"
-                    >
-                        Log in
+                    <button type="submit" disabled={processing} className="auth-focus mt-3 flex min-h-12 w-full items-center justify-between rounded-xl bg-auth-green px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-auth-ink active:bg-auth-ink disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none">
+                        <span>{processing ? 'Signing in...' : 'Sign in'}</span>
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-5"><path d="M4 12h15m-6-6 6 6-6 6" /></svg>
                     </button>
                 </form>
-
-                <p className="mt-6 text-center text-xs text-slate-500">
-                    Need an account?{' '}
-                    <Link href="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-                        Register
-                    </Link>
-                </p>
-
-                <div className="mt-6 rounded-md bg-slate-50 p-3 text-xs text-slate-500">
-                    <p className="font-medium text-slate-600">Demo accounts (password: password)</p>
-                    <p>Teacher &mdash; teacher@example.com</p>
-                    <p>Student &mdash; student1@example.com</p>
-                </div>
-            </div>
-        </div>
+                <div className="auth-divider my-3 flex items-center gap-4" aria-hidden="true"><div className="h-px flex-1 bg-auth-border" /><span className="text-xs text-auth-muted">or</span><div className="h-px flex-1 bg-auth-border" /></div>
+                <button type="button" disabled aria-describedby="school-id-note" className="auth-school-button flex min-h-11 w-full items-center justify-center gap-3 rounded-xl border border-auth-border bg-auth-page/50 px-3 py-3 text-sm font-medium text-auth-muted disabled:cursor-not-allowed">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="size-5"><rect x="3" y="5" width="18" height="14" rx="3" /><circle cx="8" cy="10" r="1.5" /><path d="M5.5 16c0-3 5-3 5 0M14 10h4m-4 4h4" /></svg>
+                    Continue with school ID
+                </button>
+                <p id="school-id-note" className="mt-2 text-center text-xs text-auth-muted">School ID sign-in is not available yet.</p>
+                <p className="auth-register mt-3 text-center text-xs leading-relaxed text-auth-muted">New to Celik?{' '}<Link href="/register" className="auth-focus rounded font-semibold text-auth-green underline underline-offset-4">Create an account.</Link></p>
+                <details className="auth-demo relative mt-3 text-xs text-auth-muted"><summary className="auth-focus cursor-pointer rounded text-center">Try a demo account</summary><div className="absolute bottom-full left-0 z-20 mb-2 w-full rounded-xl border border-auth-border bg-auth-page p-3 leading-relaxed shadow-lg"><p>Password: password</p><p>Teacher: teacher@example.com</p><p>Student: student1@example.com</p></div></details>
+            </LoginFormPanel>
+        </AuthPageShell>
     );
+}
+
+function LoginFormPanel({ children }) {
+    return <section className="auth-form-panel flex h-full min-h-0 min-w-0 items-center justify-center overflow-hidden bg-white px-6 md:px-10 lg:px-12"><div className="auth-form-content w-full max-w-[420px]">{children}</div></section>;
 }
