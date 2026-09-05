@@ -7,6 +7,9 @@ import { createServer } from 'vite';
 const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
 after(() => server.close());
 const { HomeworkChart, LearningGapItem, ProgressBar, EmptyState } = await server.ssrLoadModule('/resources/js/Components/Student/DashboardComponents.jsx');
+const { default: StudentProfileDropdown } = await server.ssrLoadModule('/resources/js/Components/Student/StudentProfileDropdown.jsx');
+const { default: StudentNotificationDropdown, NotificationMenuContent } = await server.ssrLoadModule('/resources/js/Components/Student/StudentNotificationDropdown.jsx');
+const { default: StudentSidebar } = await server.ssrLoadModule('/resources/js/Components/Student/StudentSidebar.jsx');
 const render = (component, props) => renderToStaticMarkup(createElement(component, props));
 
 test('empty homework history explains where progress will appear', () => {
@@ -43,4 +46,33 @@ test('progress remains valid with empty or out-of-range data', () => {
 test('empty sections show a helpful message', () => {
     const html = render(EmptyState, { title: "You're all caught up.", description: 'No active learning gaps have been identified.' });
     assert.match(html, /No active learning gaps have been identified/);
+});
+
+test('student account menu is a compact header trigger by default', () => {
+    const html = render(StudentProfileDropdown, { student: { name: 'Chidi Okafor', classroom: 'Grade 5 · Room 3' }, isOpen: false, onOpenChange() {}, onSettings() {} });
+
+    assert.match(html, /aria-haspopup="menu"/);
+    assert.match(html, /aria-expanded="false"/);
+    assert.match(html, /Chidi Okafor/);
+    assert.doesNotMatch(html, /role="menu"/);
+});
+
+test('notifications show due work with a count and an empty-state fallback', () => {
+    const trigger = render(StudentNotificationDropdown, { assignments: [{ id: 7, title: 'Homework 7' }], isOpen: false, onOpenChange() {}, onViewDue() {} });
+    const notification = render(NotificationMenuContent, { assignments: [{ id: 7, title: 'Homework 7', topic: 'Heat transfer', due: 'Friday', dueTime: '8:00 AM' }], onViewDue() {} });
+    const empty = render(NotificationMenuContent, { assignments: [], onViewDue() {} });
+
+    assert.match(trigger, /Notifications, 1 upcoming/);
+    assert.match(notification, /Homework 7/);
+    assert.match(notification, /View all due work/);
+    assert.match(empty, /No upcoming homework right now/);
+});
+
+test('student sidebar stops after navigation and next due work', () => {
+    const html = render(StudentSidebar, { active: 'overview', navigate() {}, student: { name: 'Chidi Okafor', classroom: 'Grade 5 · Room 3' }, nextDue: { title: 'Homework 7', topic: 'Heat transfer', due: 'Friday' } });
+
+    assert.match(html, /NEXT DUE/);
+    assert.doesNotMatch(html, /Due Soon/);
+    assert.doesNotMatch(html, /Settings/);
+    assert.doesNotMatch(html, /Logout/);
 });

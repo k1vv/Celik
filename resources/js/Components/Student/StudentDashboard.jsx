@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import StudentSidebar, { studentNavigation } from './StudentSidebar';
+import StudentProfileDropdown from './StudentProfileDropdown';
+import StudentNotificationDropdown from './StudentNotificationDropdown';
 import { DashboardCard, EmptyState, HomeworkChart, Icon, LearningGapItem, ProgressBar } from './DashboardComponents';
 import { mockDashboardStats, mockHomeworkProgress, mockLearningGaps, mockNextDue, mockNextPractice, mockRecentWork, mockStudent } from './dashboardData';
 import { DueSoonPage, MarkedWorkPage } from './StudentWorkPages';
+import { nextAssignment, upcomingAssignments } from './studentWorkData';
 
 const textAction = 'auth-focus inline-flex items-center gap-2 rounded-lg text-xs font-semibold text-auth-green';
 const primaryAction = 'auth-focus inline-flex items-center justify-center gap-3 rounded-xl bg-auth-green px-5 py-3 text-sm font-medium text-white hover:bg-auth-green/90';
@@ -11,10 +14,11 @@ const primaryAction = 'auth-focus inline-flex items-center justify-center gap-3 
 export default function StudentDashboard({ classroom, children, dashboardData = {}, initialView = 'overview' }) {
     const { auth, flash } = usePage().props;
     const [active, setActive] = useState(() => flash?.result ? 'practice' : initialView);
+    const [openMenu, setOpenMenu] = useState(null);
     useEffect(() => {
         const restore = () => {
             const view = window.location.hash.slice(1);
-            setActive([...studentNavigation.map((item) => item.id), 'settings'].includes(view) ? view : flash?.result ? 'practice' : initialView);
+            setActive([...studentNavigation.map((item) => item.id), 'due', 'settings'].includes(view) ? view : flash?.result ? 'practice' : initialView);
         };
         restore();
         window.addEventListener('hashchange', restore);
@@ -38,13 +42,17 @@ export default function StudentDashboard({ classroom, children, dashboardData = 
         work: 'Review your released homework, teacher feedback, and areas to improve.',
         due: 'Stay on top of your upcoming assignments and submission deadlines.',
     };
+    const activeLabel = active === 'due' ? 'Due Soon' : studentNavigation.find((item) => item.id === active)?.label || 'Settings';
+    const pageTitle = overview ? 'A little progress, every day.' : activeLabel;
+    // TODO BACKEND: Replace the shared placeholder assignments with due-work props from the dashboard endpoint.
+    const dueAssignments = [nextAssignment, ...upcomingAssignments].filter(Boolean);
 
     return <div className="min-h-dvh bg-auth-page text-auth-ink md:pl-60">
-        <Head title={studentNavigation.find((item) => item.id === active)?.label || 'Settings'} />
+        <Head title={activeLabel} />
         <div className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8 xl:p-10">
             <StudentSidebar active={active} navigate={navigate} student={student} nextDue={nextDue} />
             <main className="min-w-0">
-                {!['work', 'due', 'practice'].includes(active) && <div className="mb-7 flex flex-wrap items-end justify-between gap-3"><div><p className="mb-2 text-xs font-medium text-auth-muted">YOUR LEARNING SPACE</p><h1 className="text-3xl font-semibold tracking-tight">{overview ? 'A little progress, every day.' : studentNavigation.find((item) => item.id === active)?.label || 'Settings'}</h1>{pageDescriptions[active] && <p className="mt-3 max-w-2xl text-sm leading-6 text-auth-muted">{pageDescriptions[active]}</p>}</div>{active !== 'practice' && <span className="rounded-full border border-auth-border bg-white px-3 py-1 text-[11px] text-auth-muted">Sample learning data</span>}</div>}
+                <header className="mb-7 flex items-start justify-between gap-3 sm:items-end"><div className="min-w-0"><p className="mb-2 text-xs font-medium text-auth-muted">YOUR LEARNING SPACE</p>{!['work', 'due', 'practice'].includes(active) && <><h1 className="text-3xl font-semibold tracking-tight">{pageTitle}</h1>{pageDescriptions[active] && <p className="mt-3 max-w-2xl text-sm leading-6 text-auth-muted">{pageDescriptions[active]}</p>}</>}</div><div className="flex items-center gap-3"><span className="hidden rounded-full border border-auth-border bg-white px-3 py-1 text-[11px] text-auth-muted sm:inline">Sample learning data</span><StudentNotificationDropdown assignments={dueAssignments} isOpen={openMenu === 'notifications'} onOpenChange={(open) => setOpenMenu(open ? 'notifications' : null)} onViewDue={() => { setOpenMenu(null); navigate('due'); }} /><StudentProfileDropdown student={student} isOpen={openMenu === 'profile'} onOpenChange={(open) => setOpenMenu(open ? 'profile' : null)} onSettings={() => navigate('settings')} /></div></header>
                 {overview && <section className="mb-6 grid gap-8 rounded-3xl border border-auth-green/10 bg-linear-to-br from-[#f4f2cc] to-auth-soft p-6 lg:grid-cols-[1.3fr_1fr] lg:items-center lg:p-8"><div><p className="text-xs font-medium text-auth-green">{student.subject} · {mockStudent.form} · {mockStudent.curriculum}</p><h2 className="mt-4 max-w-md text-3xl font-semibold leading-tight tracking-tight">{remaining ? `${remaining === 2 ? 'Two' : remaining} learning gaps left to clear` : "You're all caught up."}</h2><p className="mt-3 max-w-lg text-sm leading-relaxed text-auth-muted">You've cleared {stats.gapsCleared} of {stats.totalGaps} learning gaps confirmed by your teacher this term.{remaining > 0 && ' Keep going — your next practice is waiting.'}</p></div><dl className="grid grid-cols-3 gap-3">{[{ value: stats.submitted, label: 'Submitted' }, { value: stats.gapsCleared, label: 'Gaps Cleared' }, { value: stats.practiceWaiting, label: 'Practice Waiting' }].map((stat) => <div key={stat.label} className="rounded-2xl border border-white/60 bg-white/50 px-2 py-5 text-center"><dd className="text-3xl font-semibold tracking-tight text-auth-green">{stat.value}</dd><dt className="mt-2 text-xs text-auth-muted">{stat.label}</dt></div>)}</dl></section>}
                 {(overview || active === 'progress') && <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><DashboardCard title="Your open learning gaps" action={<span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-800">{learningGaps.filter((gap) => !gap.cleared).length} open</span>}><div className="space-y-3">{learningGaps.length ? learningGaps.map((gap) => <LearningGapItem key={gap.code} gap={gap} onPractice={() => navigate('practice')} />) : <EmptyState title="You're all caught up." description="No active learning gaps have been identified." />}</div></DashboardCard><div className="grid content-start gap-6"><DashboardCard title="Gaps cleared per homework"><HomeworkChart items={homeworkProgress} /></DashboardCard>{overview && <DashboardCard title="Recently released" action={<button onClick={() => navigate('work')} className={textAction}>See all <Icon className="size-3" /></button>}><RecentWork items={recentWork} navigate={navigate} /></DashboardCard>}</div></div>}
                 {overview && <DashboardCard className="mt-6 bg-linear-to-r from-[#f4f2cc] to-auth-soft">{nextPractice ? <div className="grid items-center gap-6 lg:grid-cols-[1.5fr_1fr]"><div><p className="text-[11px] font-semibold tracking-widest text-auth-green">YOUR NEXT PRACTICE · {nextPractice.code}</p><h2 className="mt-3 text-2xl font-semibold tracking-tight">{nextPractice.title}</h2><p className="mt-3 max-w-2xl text-sm leading-relaxed text-auth-muted">{nextPractice.description}</p></div><div><div className="mb-3 flex justify-between text-xs text-auth-muted"><span>{nextPractice.questions} Questions · ~{nextPractice.minutes} min</span><span>{nextPractice.completed}/{nextPractice.questions} complete</span></div><ProgressBar completed={nextPractice.completed} total={nextPractice.questions} label="Next practice progress" /><button className={`${primaryAction} mt-5 w-full`} onClick={() => navigate('practice')}>Start Practice <Icon className="size-4" /></button><p className="mt-2 text-center text-[11px] text-auth-muted">Opens your available class practice.</p></div></div> : <EmptyState title="No personalised practice is waiting right now." />}</DashboardCard>}
