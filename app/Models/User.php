@@ -45,7 +45,7 @@ class User extends Authenticatable
     /** Name of the route this user should land on after login/registration. */
     public function homeRouteName(): string
     {
-        return $this->isTeacher() ? 'dashboard' : 'practice';
+        return $this->isTeacher() ? 'dashboard' : 'student.dashboard';
     }
 
     /** Classrooms this user teaches. */

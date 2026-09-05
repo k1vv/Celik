@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import StudentSidebar, { studentNavigation } from './StudentSidebar';
 import { DashboardCard, EmptyState, HomeworkChart, Icon, LearningGapItem, ProgressBar } from './DashboardComponents';
 import { mockDashboardStats, mockHomeworkProgress, mockLearningGaps, mockNextDue, mockNextPractice, mockRecentWork, mockStudent } from './dashboardData';
@@ -7,22 +7,26 @@ import { mockDashboardStats, mockHomeworkProgress, mockLearningGaps, mockNextDue
 const textAction = 'auth-focus inline-flex items-center gap-2 rounded-lg text-xs font-semibold text-auth-green';
 const primaryAction = 'auth-focus inline-flex items-center justify-center gap-3 rounded-xl bg-auth-green px-5 py-3 text-sm font-medium text-white hover:bg-auth-green/90';
 
-export default function StudentDashboard({ classroom, children, dashboardData = {} }) {
+export default function StudentDashboard({ classroom, children, dashboardData = {}, initialView = 'overview' }) {
     const { auth, flash } = usePage().props;
-    const [active, setActive] = useState(() => flash?.result ? 'practice' : 'overview');
+    const [active, setActive] = useState(() => flash?.result ? 'practice' : initialView);
     useEffect(() => {
         const restore = () => {
             const view = window.location.hash.slice(1);
-            setActive([...studentNavigation.map((item) => item.id), 'settings'].includes(view) ? view : flash?.result ? 'practice' : 'overview');
+            setActive([...studentNavigation.map((item) => item.id), 'settings'].includes(view) ? view : flash?.result ? 'practice' : initialView);
         };
         restore();
         window.addEventListener('hashchange', restore);
         return () => window.removeEventListener('hashchange', restore);
-    }, [flash?.result]);
+    }, [flash?.result, initialView]);
     function navigate(view) {
-        window.location.hash = view;
-        setActive(view);
-        window.scrollTo({ top: 0 });
+        const routes = {
+            overview: '/student/dashboard',
+            submit: '/student/homework/submit',
+            practice: '/practice',
+        };
+
+        router.visit(routes[view] || `/student/dashboard#${view}`);
     }
     // TODO: Replace sample dashboard props independently as backend summaries become available.
     const { stats = mockDashboardStats, learningGaps = mockLearningGaps, homeworkProgress = mockHomeworkProgress, recentWork = mockRecentWork, nextPractice = mockNextPractice, nextDue = mockNextDue } = dashboardData;
@@ -42,7 +46,7 @@ export default function StudentDashboard({ classroom, children, dashboardData = 
                 {active === 'practice' && children}
                 {active === 'work' && <DashboardCard title="Recently released"><RecentWork items={recentWork} navigate={navigate} expanded /></DashboardCard>}
                 {active === 'due' && <DashboardCard title="Next assignment">{nextDue ? <><p className="font-semibold">{nextDue.title} · {nextDue.topic}</p><p className="mt-3 text-sm text-auth-muted">{nextDue.due}</p><p className="mt-5 text-sm text-auth-muted">This is a sample assignment. Assignment details will appear here when homework is connected.</p></> : <EmptyState title="Nothing due soon." />}</DashboardCard>}
-                {active === 'submit' && <DashboardCard title="Submit Homework"><EmptyState title="Homework submission is not available yet." description="Your teacher will share instructions for submitting your work. Connected assignments will appear here." /></DashboardCard>}
+                {active === 'submit' && (children || <DashboardCard title="Submit Homework"><EmptyState title="Homework submission is not available yet." description="Your teacher will share instructions for submitting your work. Connected assignments will appear here." /></DashboardCard>)}
                 {active === 'settings' && <DashboardCard title="Your account"><p className="font-semibold">{student.name}</p><p className="mt-2 text-sm text-auth-muted">{student.classroom}</p><p className="mt-5 text-sm text-auth-muted">Account settings are not available yet. Contact your teacher to update your details.</p></DashboardCard>}
             </main>
         </div>

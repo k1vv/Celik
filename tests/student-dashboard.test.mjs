@@ -7,6 +7,7 @@ import { createServer } from 'vite';
 const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom' });
 after(() => server.close());
 const { HomeworkChart, LearningGapItem, ProgressBar, EmptyState } = await server.ssrLoadModule('/resources/js/Components/Student/DashboardComponents.jsx');
+const { SubmitHomeworkPage } = await server.ssrLoadModule('/resources/js/Pages/SubmitHomework.jsx');
 const render = (component, props) => renderToStaticMarkup(createElement(component, props));
 
 test('empty homework history explains where progress will appear', () => {
@@ -43,4 +44,15 @@ test('progress remains valid with empty or out-of-range data', () => {
 test('empty sections show a helpful message', () => {
     const html = render(EmptyState, { title: "You're all caught up.", description: 'No active learning gaps have been identified.' });
     assert.match(html, /No active learning gaps have been identified/);
+});
+
+test('submit homework page renders its local-only submission and released-work UI', () => {
+    const html = render(SubmitHomeworkPage);
+
+    assert.match(html, /Drop your homework here/);
+    assert.match(html, /Homework 7 · Heat and energy transfer/);
+    assert.match(html, /Released to you/);
+    assert.match(html, /4 marked · 1 new/);
+    assert.match(html, /Sample submission interface · uploading is not connected yet/);
+    assert.doesNotMatch(html, /<form|href=/);
 });
