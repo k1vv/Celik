@@ -8,17 +8,17 @@ import PasswordField from '../../Components/Auth/PasswordField';
 import RoleSegmentedControl from '../../Components/Auth/RoleSegmentedControl';
 
 export default function Login() {
-    // This selection changes the presentation only; the account determines its role.
     const [selectedRole, setSelectedRole] = useState('student');
     const showcase = useShowcase();
+    const { data, setData, post, processing, errors } = useForm({ email: '', password: '', role: 'student' });
 
     const handleRoleChange = (role) => {
         setSelectedRole(role);
+        setData('role', role);
         const slideId = role === 'student' ? 'adaptive-practice' : 'classroom-insights';
         const slideIndex = showcaseSlides.findIndex((slide) => slide.id === slideId);
         showcase.goToSlide(slideIndex < 0 ? 0 : slideIndex);
     };
-    const { data, setData, post, processing, errors } = useForm({ email: '', password: '' });
 
     const submit = (event) => {
         event.preventDefault();

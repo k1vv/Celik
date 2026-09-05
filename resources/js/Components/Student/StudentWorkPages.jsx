@@ -1,84 +1,48 @@
-import { useMemo, useState } from 'react';
-import { EmptyState, Icon } from './DashboardComponents';
-import { dueSoonSummary, markedWorks, markedWorkSummary, nextAssignment, upcomingAssignments } from './studentWorkData';
+import { router } from '@inertiajs/react';
+import { EmptyState, Icon, ProgressBar } from './DashboardComponents';
+import { dueSoonSummary, markedWorkDetail, nextAssignment, upcomingAssignments } from './studentWorkData';
 
-const actionClass = 'auth-focus inline-flex items-center justify-center gap-2 rounded-xl bg-auth-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-auth-green/90';
-const secondaryActionClass = 'auth-focus inline-flex items-center justify-center gap-2 rounded-xl border border-auth-green/25 bg-white px-4 py-2.5 text-sm font-semibold text-auth-green hover:bg-auth-soft/60';
-const fieldClass = 'auth-focus min-h-11 w-full rounded-xl border border-auth-border bg-white px-3 text-sm text-auth-ink shadow-xs placeholder:text-auth-muted/70';
-
-const statusStyles = {
-    excellent: 'bg-auth-soft text-auth-green',
-    progress: 'bg-[#eef4df] text-[#556b22]',
-    practice: 'bg-amber-50 text-amber-800',
-    review: 'bg-orange-50 text-orange-800',
-};
-
-const deadlineStyles = {
-    urgent: 'bg-orange-50 text-orange-800',
-    soon: 'bg-amber-50 text-amber-800',
-    week: 'bg-[#f4f2cc] text-[#68601e]',
-    upcoming: 'bg-auth-soft text-auth-green',
-};
-
-export function StatusBadge({ children, tone = 'excellent' }) {
-    return <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyles[tone] || deadlineStyles[tone] || statusStyles.excellent}`}>{children}</span>;
-}
+const primaryAction = 'auth-focus inline-flex items-center justify-center gap-2 rounded-xl bg-auth-green px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-auth-green/90';
+const issueStyles = { fact: { card: 'border-[#f3d2c8] bg-[#fff8f5]', badge: 'bg-[#f9e5de] text-[#a44d3b]', label: 'FACT' }, method: { card: 'border-[#d6e1f4] bg-[#f7faff]', badge: 'bg-[#e7eef9] text-[#527ba9]', label: 'METHOD' } };
+const dueStyles = { urgent: 'bg-[#fff2d7] text-[#8b6318]', week: 'bg-[#f7f7f2] text-auth-muted', upcoming: 'bg-auth-soft text-auth-green' };
 
 export function PageSummary({ items }) {
-    return <dl className="grid grid-cols-3 gap-2 sm:gap-3">{items.map((item) => <div key={item.label} className="rounded-2xl border border-auth-border bg-white p-3 shadow-xs sm:p-4"><dt className="text-[11px] leading-tight text-auth-muted sm:text-xs">{item.label}</dt><dd className="mt-2 text-2xl font-semibold tracking-tight text-auth-green sm:text-3xl">{item.value}</dd></div>)}</dl>;
+    return <dl className="flex flex-wrap gap-3">{items.map((item) => <div key={item.label} className="min-w-30 rounded-2xl border border-white/80 bg-white/75 px-4 py-3 shadow-xs"><dd className="text-2xl font-semibold tracking-tight text-auth-green">{item.value}</dd><dt className="mt-1 text-[11px] font-medium text-auth-muted">{item.label}</dt></div>)}</dl>;
 }
 
-export function WorkPageLoadingState() {
-    return <div aria-label="Loading assignments" className="grid gap-4">{[1, 2, 3].map((item) => <div key={item} className="animate-pulse rounded-3xl border border-auth-border bg-white p-6"><div className="h-4 w-28 rounded bg-auth-page" /><div className="mt-4 h-6 w-64 max-w-full rounded bg-auth-page" /><div className="mt-6 h-16 rounded-2xl bg-auth-page" /></div>)}</div>;
+export function MarkedWorkPage({ work = markedWorkDetail }) {
+    return <div className="grid gap-5 lg:gap-6"><section className="overflow-hidden rounded-[1.75rem] border border-auth-green/10 bg-linear-to-br from-[#fff2a8] via-[#f8f5d8] to-auth-soft p-6 shadow-xs sm:p-8"><div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"><div><p className="text-[11px] font-bold tracking-[0.16em] text-auth-green">RELEASED {work.releasedDate.toUpperCase()} · {work.teacher.toUpperCase()}</p><h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Your marked answer</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-auth-muted">Q{work.questionNumber} · {work.question}. {work.issueCount} issues were tagged to your syllabus gaps.</p></div><PageSummary items={[{ label: 'Scored', value: `${work.score}/${work.totalScore}` }, { label: 'Issues found', value: work.issueCount }]} /></div></section><div className="grid gap-5 xl:grid-cols-[minmax(0,1.85fr)_minmax(18rem,1fr)] xl:gap-6"><section className="rounded-[1.75rem] border border-auth-border bg-white p-5 shadow-xs sm:p-7"><div className="flex flex-wrap items-start justify-between gap-3 border-b border-auth-border pb-5"><div><p className="text-[11px] font-bold tracking-[0.16em] text-auth-green">QUESTION {work.questionNumber}</p><h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">{work.question}</h2></div><span className="rounded-full bg-[#f7f7f2] px-3 py-1.5 text-xs font-medium text-auth-muted">tap a highlight</span></div><div className="mt-6 rounded-2xl border border-auth-border bg-[#fcfcf9] p-5 text-lg leading-8 text-auth-ink sm:p-6"><p>“The metal spoon feels colder because <mark className="rounded bg-[#f9e5de] px-1.5 py-0.5 text-inherit">metal is a cold material</mark> and <mark className="rounded bg-[#e7eef9] px-1.5 py-0.5 text-inherit">wood is a warm material.</mark>”</p></div><div className="mt-4 flex flex-wrap gap-4 text-xs text-auth-muted"><span className="inline-flex items-center gap-2"><span className="size-2.5 rounded-sm bg-[#eea08c]" />Fact</span><span className="inline-flex items-center gap-2"><span className="size-2.5 rounded-sm bg-[#a8c5eb]" />Method of answering</span></div><div className="mt-8"><p className="text-[11px] font-bold tracking-[0.16em] text-auth-green">WHAT WENT WRONG</p><div className="mt-4 grid gap-3">{work.issues.map((issue) => <IssueCard key={issue.code} issue={issue} />)}</div></div></section><aside className="grid content-start gap-5"><TeacherNoteCard note={work.teacherNote} /><PracticeCard practice={work.practice} /></aside></div></div>;
 }
 
-export function MarkedWorkPage({ items = markedWorks, summary = markedWorkSummary }) {
-    const [search, setSearch] = useState('');
-    const [subject, setSubject] = useState('all');
-    const [result, setResult] = useState('all');
-    const [sort, setSort] = useState('recent');
-    const subjects = [...new Set(items.map((item) => item.subject))];
-    const visibleItems = useMemo(() => items.filter((item) => {
-        const matchesSearch = `${item.title} ${item.topic}`.toLowerCase().includes(search.toLowerCase());
-        return matchesSearch && (subject === 'all' || item.subject === subject) && (result === 'all' || item.statusTone === result);
-    }).sort((first, second) => sort === 'score' ? second.percentage - first.percentage : second.releasedOrder - first.releasedOrder), [items, result, search, sort, subject]);
-
-    return <div className="grid gap-6">
-        <PageSummary items={summary} />
-        <section aria-label="Filter marked work" className="rounded-3xl border border-auth-border bg-white p-4 shadow-xs sm:p-5">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(14rem,1.5fr)_1fr_1fr_1fr]">
-                <label className="grid gap-2 text-xs font-medium text-auth-muted"><span>Search</span><span className="relative"><Icon name="search" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" /><input value={search} onChange={(event) => setSearch(event.target.value)} className={`${fieldClass} pl-9`} placeholder="Search homework..." /></span></label>
-                <FilterSelect label="Subject" value={subject} onChange={setSubject}><option value="all">All Subjects</option>{subjects.map((item) => <option key={item}>{item}</option>)}</FilterSelect>
-                <FilterSelect label="Result" value={result} onChange={setResult}><option value="all">All Results</option><option value="excellent">Excellent</option><option value="progress">Good Progress</option><option value="practice">Needs Practice</option><option value="review">Review Required</option></FilterSelect>
-                <FilterSelect label="Sort" value={sort} onChange={setSort}><option value="recent">Recently Released</option><option value="score">Highest Score</option></FilterSelect>
-            </div>
-        </section>
-        <section aria-labelledby="marked-work-list-heading"><h2 id="marked-work-list-heading" className="sr-only">Released homework</h2>{visibleItems.length ? <div className="grid gap-4">{visibleItems.map((work) => <MarkedWorkCard key={work.id} work={work} />)}</div> : <EmptyState title="No marked work yet" description="Your teacher's released feedback will appear here." />}</section>
-    </div>;
+export function IssueCard({ issue }) {
+    const style = issueStyles[issue.variant] || issueStyles.fact;
+    return <article className={`rounded-2xl border p-4 sm:p-5 ${style.card}`}><div className="flex flex-wrap items-start justify-between gap-3"><h3 className="text-sm font-semibold leading-5"><span className={`mr-2 inline-flex rounded-md px-2 py-1 text-[10px] font-bold ${style.badge}`}>[{issue.code}]</span>{issue.title}</h3><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${style.badge}`}>{style.label}</span></div><p className="mt-3 text-sm leading-6 text-auth-muted">{issue.description}</p></article>;
 }
 
-function FilterSelect({ label, value, onChange, children }) {
-    return <label className="grid gap-2 text-xs font-medium text-auth-muted"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className={fieldClass}>{children}</select></label>;
+function TeacherNoteCard({ note }) {
+    return <section className="rounded-[1.75rem] border border-auth-border bg-white p-5 shadow-xs sm:p-6"><div className="flex items-center gap-3"><span className="flex size-11 items-center justify-center rounded-full bg-auth-soft text-sm font-bold text-auth-green">{note.initials}</span><div><p className="text-[10px] font-bold tracking-[0.16em] text-auth-muted">TEACHER'S NOTE</p><h2 className="mt-1 text-sm font-semibold">{note.teacher}</h2></div></div><blockquote className="mt-6 border-l-2 border-[#e5c74d] pl-4 text-sm leading-6 text-auth-muted">“{note.message}”</blockquote></section>;
 }
 
-function MarkedWorkCard({ work }) {
-    return <article className="rounded-3xl border border-auth-border bg-white p-5 shadow-xs sm:p-6">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(12rem,.85fr)_10rem] lg:items-center">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2 text-xs text-auth-muted"><span className="font-semibold text-auth-green">{work.subject}</span><span aria-hidden="true">•</span><span>Released {work.released}</span><span aria-hidden="true">•</span><span>{work.teacher}</span></div><h3 className="mt-3 text-xl font-semibold tracking-tight">{work.title}</h3><p className="mt-1 text-sm font-medium text-auth-muted">{work.topic}</p><blockquote className="mt-5 border-l-2 border-auth-green/25 pl-4 text-sm leading-6 text-auth-muted"><span className="font-medium text-auth-ink">Teacher feedback: </span>{work.feedback}</blockquote></div>
-            <div><p className="text-[11px] font-semibold tracking-[0.16em] text-auth-muted">LEARNING AREAS</p><ul className="mt-3 flex flex-wrap gap-2">{work.learningAreas.map((area) => <li key={area} className="rounded-full border border-auth-border bg-auth-page px-3 py-1.5 text-xs text-auth-ink">{area}</li>)}</ul></div>
-            <div className="flex flex-row items-center justify-between gap-4 border-t border-auth-border pt-5 lg:flex-col lg:items-stretch lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0"><div><p className="text-3xl font-semibold tracking-tight text-auth-green">{work.score}<span className="text-base font-normal text-auth-muted"> / {work.total}</span></p><p className="mt-1 text-xs text-auth-muted">{work.percentage}% score</p><div className="mt-3"><StatusBadge tone={work.statusTone}>{work.status}</StatusBadge></div></div>{/* TODO BACKEND: Connect to marked homework detail route. */}<a href="#" className={actionClass}>View <span className="hidden sm:inline">Marked Work</span><Icon className="size-4" /></a></div>
-        </div>
-    </article>;
+function PracticeCard({ practice }) {
+    return <section className="rounded-[1.75rem] border border-auth-green/10 bg-linear-to-br from-[#fff2a8] to-auth-soft p-5 shadow-xs sm:p-6"><p className="text-[11px] font-bold tracking-[0.16em] text-auth-green">NEXT</p><h2 className="mt-3 text-xl font-semibold tracking-tight">{practice.title}</h2><p className="mt-3 text-sm leading-6 text-auth-muted">{practice.description}</p><button type="button" onClick={() => router.visit('/practice')} className={`${primaryAction} mt-5`}>Go to practice <Icon className="size-4" /></button>{/* TODO BACKEND: Link to a generated marked-work PDF when downloads are implemented. */}<button type="button" className="auth-focus mt-5 block text-sm font-medium text-auth-green underline underline-offset-4" title="PDF download unavailable">Download marked PDF</button></section>;
 }
 
 export function DueSoonPage({ featured = nextAssignment, assignments = upcomingAssignments, summary = dueSoonSummary }) {
-    return <div className="grid gap-6"><PageSummary items={summary} />{featured ? <NextAssignmentCard assignment={featured} /> : <EmptyState title="You're all caught up!" description="No assignments are due soon." />}<section aria-labelledby="upcoming-heading"><div className="mb-4 flex items-end justify-between gap-3"><div><p className="text-[11px] font-semibold tracking-[0.16em] text-auth-green">PLAN AHEAD</p><h2 id="upcoming-heading" className="mt-2 text-xl font-semibold tracking-tight">Upcoming Assignments</h2></div><span className="text-xs text-auth-muted">{assignments.length} assignments</span></div>{assignments.length ? <div className="grid gap-3">{assignments.map((assignment) => <UpcomingAssignmentCard key={assignment.id} assignment={assignment} />)}</div> : <EmptyState title="You're all caught up!" description="No assignments are due soon." />}</section></div>;
+    const hasAssignments = featured || assignments.length;
+    if (!hasAssignments) return <div><PageHeader eyebrow="THIS TERM" title="Due work" description="Stay on top of your upcoming homework." /><div className="mt-6"><EmptyState title="You're all caught up" description="No homework is due right now." /></div></div>;
+    return <div className="grid gap-6"><div className="flex flex-wrap items-end justify-between gap-5"><PageHeader eyebrow="THIS TERM" title="Due work" description="Stay on top of your upcoming homework." /><PageSummary items={summary} /></div>{featured && <PriorityAssignmentCard assignment={featured} />}<section aria-labelledby="upcoming-heading"><p className="text-[11px] font-bold tracking-[0.16em] text-auth-green">UPCOMING</p><h2 id="upcoming-heading" className="mt-2 text-2xl font-semibold tracking-tight">Plan what is next</h2><div className="mt-4 grid gap-3">{assignments.map((assignment) => <DueWorkCard key={assignment.id} assignment={assignment} />)}</div></section></div>;
 }
 
-function NextAssignmentCard({ assignment }) {
-    return <article className="overflow-hidden rounded-3xl border border-auth-green/15 bg-linear-to-br from-[#f4f2cc] to-auth-soft shadow-xs"><div className="grid gap-7 p-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(17rem,.7fr)] lg:p-8"><div><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-semibold tracking-[0.18em] text-auth-green">NEXT ASSIGNMENT</p><StatusBadge tone="soon">Due Soon</StatusBadge></div><h2 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">{assignment.title}</h2><p className="mt-1 font-medium text-auth-green">{assignment.topic}</p><p className="mt-4 max-w-2xl text-sm leading-6 text-auth-muted">{assignment.description}</p><p className="mt-4 text-xs text-auth-muted">{assignment.subject} · Teacher: {assignment.teacher}</p></div><div className="rounded-2xl border border-white/70 bg-white/65 p-5"><p className="text-xs text-auth-muted">Due</p><p className="mt-1 text-lg font-semibold">{assignment.due}</p><p className="mt-4 text-xs text-auth-muted">Time remaining</p><p className="mt-1 font-semibold text-auth-green">{assignment.timeRemaining}</p><div className="mt-5 flex items-center justify-between border-t border-auth-green/10 pt-4 text-xs"><span className="text-auth-muted">Progress</span><span className="font-semibold">{assignment.status}</span></div></div></div><div className="flex flex-col gap-3 border-t border-auth-green/10 bg-white/35 px-6 py-4 sm:flex-row sm:justify-end lg:px-8">{/* TODO BACKEND: Connect assignment detail URL. */}<a href="#" className={secondaryActionClass}>View Assignment</a>{/* TODO BACKEND: Connect to the existing assignment submission destination. */}<a href="#submit" className={actionClass}><Icon name="submit" className="size-4" />Submit Homework</a></div></article>;
+function PageHeader({ eyebrow, title, description }) {
+    return <div><p className="text-[11px] font-bold tracking-[0.16em] text-auth-green">{eyebrow}</p><h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1><p className="mt-3 text-sm text-auth-muted">{description}</p></div>;
 }
 
-function UpcomingAssignmentCard({ assignment }) {
-    return <article className="grid gap-4 rounded-2xl border border-auth-border bg-white p-4 shadow-xs sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-5"><span className="flex size-11 items-center justify-center rounded-xl bg-auth-soft text-auth-green"><Icon name={assignment.subject === 'Mathematics' ? 'calculator' : 'science'} /></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{assignment.title}</h3><StatusBadge tone={assignment.deadlineTone}>{assignment.deadline}</StatusBadge></div><p className="mt-1 text-sm text-auth-muted">{assignment.topic} · {assignment.subject}</p><div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-auth-muted"><span>Due {assignment.due}</span><span className="font-medium text-auth-ink">{assignment.timeRemaining}</span><span>{assignment.status}</span></div></div>{/* TODO BACKEND: Connect assignment detail URL. */}<a href="#" className={`${secondaryActionClass} w-full sm:w-auto`}>View Assignment <Icon className="size-4" /></a></article>;
+function PriorityAssignmentCard({ assignment }) {
+    return <article className="overflow-hidden rounded-[1.75rem] border border-auth-green/10 bg-linear-to-br from-[#fff2a8] via-[#f8f5d8] to-auth-soft shadow-xs"><div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_15rem] lg:p-8"><div><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-white/70 px-3 py-1.5 text-[11px] font-bold tracking-[0.12em] text-auth-green">{assignment.deadline} · {assignment.dueTime}</span><span className="rounded-full bg-white/60 px-3 py-1.5 text-xs font-semibold text-auth-ink">{assignment.subject}</span></div><h2 className="mt-5 text-2xl font-semibold tracking-tight sm:text-3xl">{assignment.title}</h2><p className="mt-2 font-medium text-auth-green">{assignment.topic}</p><p className="mt-4 max-w-xl text-sm leading-6 text-auth-muted">{assignment.description}</p><div className="mt-5 flex flex-wrap gap-2"><span className="rounded-full bg-white/65 px-3 py-1.5 text-xs text-auth-ink">{assignment.questionCount} questions</span><span className="rounded-full bg-white/65 px-3 py-1.5 text-xs text-auth-ink">{assignment.teacher}</span></div></div><div className="rounded-2xl border border-white/80 bg-white/65 p-5"><p className="text-[11px] font-bold tracking-[0.14em] text-auth-muted">DUE</p><p className="mt-2 text-xl font-semibold">{assignment.dueTime}</p><p className="mt-4 text-xs text-auth-muted">{assignment.timeRemaining}</p><button type="button" onClick={() => router.visit('/student/homework/submit')} className={`${primaryAction} mt-6 w-full`}>Continue work <Icon className="size-4" /></button></div></div></article>;
+}
+
+export function DueWorkCard({ assignment }) {
+    const tone = dueStyles[assignment.deadlineTone] || dueStyles.upcoming;
+    const isSubmitted = assignment.status === 'Submitted';
+    return <article className="grid gap-4 rounded-2xl border border-auth-border bg-white p-4 shadow-xs transition-colors hover:border-auth-green/25 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-5"><span className="flex size-11 items-center justify-center rounded-xl bg-auth-soft text-auth-green"><Icon name={assignment.subject === 'Mathematics' ? 'calculator' : 'science'} /></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${tone}`}>{assignment.deadline}</span><span className="text-xs text-auth-muted">{assignment.subject}</span></div><h3 className="mt-2 font-semibold">{assignment.title}</h3><p className="mt-1 text-sm text-auth-muted">{assignment.teacher} · Due {assignment.due}</p><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs"><span className="text-auth-muted">{assignment.questionCount} questions</span><span className="font-medium text-auth-ink">{assignment.status}</span>{assignment.progress > 0 && <span className="flex min-w-35 flex-1 items-center gap-2"><ProgressBar completed={assignment.progress} total={100} label={`${assignment.title} progress`} /><span className="text-auth-muted">{assignment.progress}%</span></span>}</div></div><button type="button" onClick={() => router.visit('/student/homework/submit')} className={`${isSubmitted ? 'auth-focus rounded-xl border border-auth-border px-4 py-2.5 text-sm font-semibold text-auth-green' : primaryAction} w-full sm:w-auto`}>{isSubmitted ? 'View work' : 'Continue'} <Icon className="size-4" /></button></article>;
 }

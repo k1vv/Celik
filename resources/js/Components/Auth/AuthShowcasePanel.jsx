@@ -23,10 +23,10 @@ export default function AuthShowcasePanel({ activeSlide, onSlideChange, paused, 
                     <div className="flex items-center gap-1">
                         {showcaseSlides.map((item, index) => (
                             <button key={item.id} type="button" onClick={() => onSlideChange(index)} aria-label={`Show ${item.title}`} aria-pressed={index === activeSlide} className="auth-focus flex size-6 items-center justify-center rounded-full">
-                                <span className={`h-1.5 rounded-full transition-all duration-300 motion-reduce:transition-none ${index === activeSlide ? 'w-5 bg-auth-green' : 'w-1.5 bg-auth-green/30'}`} />
+                                <span className={`h-1.5 rounded-full transition-all duration-300 motion-reduce:transition-none ${index === activeSlide ? `auth-progress-indicator w-6 bg-auth-green ${paused ? '[animation-play-state:paused]' : ''}` : 'w-1.5 bg-auth-green/30'}`} />
                             </button>
                         ))}
-                        <button type="button" onClick={() => onPauseChange(!paused)} aria-label={paused ? 'Resume showcase rotation' : 'Pause showcase rotation'} className="auth-focus ml-1 rounded px-1 py-1 text-xs font-medium text-auth-green">{paused ? 'Play' : 'Pause'}</button>
+                        <button type="button" onClick={() => onPauseChange(!paused)} aria-label={paused ? 'Resume showcase rotation' : 'Pause showcase rotation'} className="auth-focus ml-1 rounded px-1 py-1 text-xs font-medium text-auth-green">{paused ? 'Resume' : 'Pause'}</button>
                     </div>
                 </div>
             </footer>

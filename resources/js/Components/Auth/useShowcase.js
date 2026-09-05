@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { showcaseSlides } from './showcaseSlides';
 
-const AUTO_ROTATE_INTERVAL = 1000;
+const AUTO_ROTATE_INTERVAL = 6000;
 
 export default function useShowcase() {
     const [activeSlide, setActiveSlide] = useState(0);

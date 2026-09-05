@@ -38,10 +38,34 @@
 .auth-form-panel { padding-block: 16px; }
 .auth-input { min-height: 44px; padding-block: 10px; }
 .auth-slide { animation: auth-slide-in 450ms ease-out both; }
+.auth-preview-enter { animation: auth-preview-enter 560ms cubic-bezier(.22, 1, .36, 1) both; }
+.auth-preview-reveal { animation: auth-preview-reveal 420ms ease-out both; }
+.auth-progress-fill { animation: auth-progress-fill 680ms cubic-bezier(.22, 1, .36, 1) both; transform-origin: left; }
+.auth-progress-indicator { animation: auth-indicator-fill 6s linear both; transform-origin: left; }
 
 @keyframes auth-slide-in {
-    from { opacity: 0; transform: translateY(4px); }
+    from { opacity: 0; transform: translateX(16px) scale(.985); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes auth-preview-enter {
+    from { opacity: 0; transform: translateX(18px) translateY(8px) scale(.97); }
+    to { opacity: 1; transform: translateX(0) translateY(0) scale(1); }
+}
+
+@keyframes auth-preview-reveal {
+    from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes auth-progress-fill {
+    from { transform: scaleX(.15); }
+    to { transform: scaleX(1); }
+}
+
+@keyframes auth-indicator-fill {
+    from { transform: scaleX(.15); }
+    to { transform: scaleX(1); }
 }
 
 @media (min-width: 1024px) {
@@ -95,7 +119,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .auth-slide { animation: none; }
+    .auth-slide, .auth-preview-enter, .auth-preview-reveal, .auth-progress-fill, .auth-progress-indicator { animation: none; }
 }
 
 @media (max-height: 480px) {

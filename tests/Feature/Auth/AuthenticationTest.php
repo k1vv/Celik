@@ -25,10 +25,12 @@ class AuthenticationTest extends TestCase
         $response = $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
+            'role' => 'student',
         ]);
 
         $this->assertAuthenticatedAs($user);
         $response->assertRedirect(route('student.dashboard'));
+        $this->get('/student/dashboard')->assertOk();
     }
 
     public function test_a_teacher_can_authenticate_and_is_redirected_to_the_dashboard(): void
@@ -38,6 +40,7 @@ class AuthenticationTest extends TestCase
         $response = $this->post('/login', [
             'email' => $user->email,
             'password' => 'password',
+            'role' => 'teacher',
         ]);
 
         $this->assertAuthenticatedAs($user);
@@ -69,6 +72,24 @@ class AuthenticationTest extends TestCase
         $response->assertInvalid(['email']);
     }
 
+    public function test_role_selection_rejects_credentials_for_another_account_type(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+
+        $response = $this->from('/login')->post('/login', [
+            'email' => $teacher->email,
+            'password' => 'password',
+            'role' => 'student',
+        ]);
+
+        $this->assertGuest();
+        $response
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors([
+                'email' => 'These credentials do not belong to a student account.',
+            ]);
+    }
+
     public function test_login_regenerates_the_session(): void
     {
         $user = User::factory()->create();
@@ -97,10 +118,14 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->post('/logout');
+        $response = $this->actingAs($user)
+            ->withSession(['temporary_message' => 'remove me'])
+            ->post('/logout');
 
         $this->assertGuest();
-        $response->assertRedirect('/login');
+        $response
+            ->assertRedirect('/login')
+            ->assertSessionMissing('temporary_message');
     }
 
     public function test_guests_cannot_log_out(): void
@@ -123,6 +148,15 @@ class AuthenticationTest extends TestCase
         $student = User::factory()->create(['role' => 'student']);
 
         $this->actingAs($student)->get('/dashboard')->assertForbidden();
+    }
+
+    public function test_a_teacher_can_view_the_teacher_dashboard(): void
+    {
+        $teacher = User::factory()->create(['role' => 'teacher']);
+
+        $this->actingAs($teacher)->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Dashboard'));
     }
 
     public function test_a_teacher_cannot_view_the_student_practice_page(): void
