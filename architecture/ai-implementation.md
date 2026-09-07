@@ -50,8 +50,8 @@ Notes on this diagram:
   within one submission**. It cannot catch the PNG-vs-PDF finding below,
   where two *separate* submissions of equivalent content disagreed with
   each other — each one individually passed its own internal check.
-- Runs **synchronously, in-request** today (up to 2 Gemini calls) — not
-  queued, despite `engine.md` §5 calling for this eventually.
+- Photo and typed answers run **synchronously, in-request** (up to 2 Gemini
+  calls). Assignment PDFs run on the queue (`GradeSubmission`).
 
 ## `homework:evaluate` — offline evaluation, not runtime AI
 

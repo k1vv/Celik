@@ -11,76 +11,110 @@ Adaptive practice & class-wide progress tracking for teachers and students, buil
 
 ## Prerequisites
 
-- Docker (Docker Desktop, or Docker Engine + Compose on Linux)
-- Node.js and npm — only needed on the host if you want to run `npm` commands outside the container; everything also runs fine via `sail npm ...`
+- Docker with Compose (Docker Desktop, or Docker Engine on Linux). On Windows, clone and run everything inside WSL2.
+- Git
 
-You do **not** need PHP or Composer installed on your host — both run inside the `laravel.test` container.
+You do **not** need PHP, Composer or Node.js on your computer. They run inside containers.
 
-## Setup
+## Setup on a new computer
 
-Clone the repo, then from the project root:
+Run these from the project root after cloning. The steps are the same on every computer.
+
+**1. Create your `.env`.**
 
 ```bash
 cp .env.example .env
 ```
 
-Set `GEMINI_API_KEY` in `.env` if you want the homework diagnosis feature to work (a free key is available at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)) — the adaptive quiz path works fine without it, but submitting homework will fail on every request until it's set. See `architecture/architecture.md` and `architecture/engine.md` for how the diagnosis pipeline works.
+Set `GEMINI_API_KEY` to grade homework (free key: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)). Quiz practice works without it. If a port is already in use, change it in `.env`.
 
-Bring up the containers (first run builds the PHP image and pulls MySQL — expect a few minutes):
-
-```bash
-docker compose up -d
-```
-
-Once the containers are healthy, install dependencies inside the container (this first command has to use `docker compose exec` — `vendor/bin/sail` doesn't exist until `composer install` puts it there):
+**2. Install the PHP packages.** This must come first, because the app image is built from a file inside `vendor/`.
 
 ```bash
-docker compose exec laravel.test composer install
+docker run --rm -u "$(id -u):$(id -g)" -e COMPOSER_HOME=/tmp/composer -v "$PWD:/app" -w /app composer:2 composer install --ignore-platform-reqs
 ```
 
-From here on, prefer `./vendor/bin/sail <command>` over `docker compose exec laravel.test <command>` — both work, but a bare `docker compose exec`/`docker exec` defaults to the container's root user, while the app itself actually runs as `sail`. Running commands as root can leave root-owned files (storage dirs, caches) that the real `sail`-owned process then can't write to — this has caused a real 500 error before. `./vendor/bin/sail` runs everything as `sail` automatically:
+**3. Start the containers.** The first run builds the image and takes several minutes.
+
+```bash
+./vendor/bin/sail up -d
+```
+
+**4. Prepare the app.** If `migrate` cannot connect, wait a few seconds for MySQL and run it again.
 
 ```bash
 ./vendor/bin/sail artisan key:generate
 ./vendor/bin/sail artisan migrate --seed
-./vendor/bin/sail npm install
+./vendor/bin/sail npm ci
+./vendor/bin/sail npm run build
 ```
+
+**5. Restart the queue worker** so it starts cleanly with the new key and database.
+
+```bash
+./vendor/bin/sail restart queue
+```
+
+Open **http://localhost:8000**. Teacher emails are optional and need a few more steps: see [`architecture/n8n-workflow.md`](architecture/n8n-workflow.md).
+
+Use `./vendor/bin/sail <command>` rather than `docker compose exec`. Sail runs commands as the right user; a bare `docker compose exec` runs as root and can leave files the app cannot write to.
+
+## What a clone does not include
+
+These stay on the computer where they were made:
+
+| Not in git | How to get it on a new computer |
+|---|---|
+| `.env` (keys and passwords) | Copy it privately, or fill in a new one |
+| Database contents | `migrate --seed` recreates the demo data; export real data with `mysqldump` |
+| Uploaded homework (`storage/app/private`) | Copy the folder |
+| n8n account, credentials and live workflow | Set up again from `architecture/n8n-workflow.md` |
+| `vendor/`, `node_modules/`, `public/build/` | Recreated by the steps above |
 
 ## Running the app
 
-The `laravel.test` container already serves the backend — visit **http://localhost:8000**.
+| Service | Address |
+|---|---|
+| App | http://localhost:8000 |
+| n8n | http://localhost:5678 |
 
-The frontend needs its own dev server for hot-reloading. Start it inside the container (it must run there, not on the host, because `compose.yaml` reserves host port 5173 for the container):
+The `queue` service grades submitted PDFs in the background. If a submission stays on "Being graded", check `./vendor/bin/sail logs queue`.
+
+While changing the frontend, run the dev server for hot reloading:
 
 ```bash
 ./vendor/bin/sail npm run dev
 ```
 
-Leave that running in its own terminal while you work. Visit http://localhost:8000/login — demo accounts (password: `password`) are seeded by `LearningDataSeeder` (Math) and `AssignmentSeeder`/`PracticeSetSeeder` (Physics, including a real homework submission and two real practice sets to try):
+Demo accounts (password: `password`):
 
 - Teacher — `teacher@example.com` (Math)
 - Student — `student1@example.com` (Math)
 - Physics teacher — `physics.teacher@example.com`
-- Physics student — `physics.student1@example.com` (has "Homework 1" waiting at `/student/homework/submit`, and two real practice sets — "Thermal Equilibrium Practice", "Specific Heat Capacity Practice" — at `/practice`)
+- Physics student — `physics.student1@example.com` (has "Homework 1" at `/student/homework/submit` and two practice sets at `/practice`)
 
-New accounts can also be created at `/register`.
+New accounts can be created at `/register`.
 
 ## Running tests
 
 ```bash
 ./vendor/bin/sail artisan test
+for file in tests/*.test.mjs; do ./vendor/bin/sail node --test "$file"; done
 ```
 
-Feature tests render real Inertia pages, so they need a built asset manifest at least once:
+Some PHP tests render pages, so `npm run build` must have been run at least once.
 
-```bash
-./vendor/bin/sail npm run build
-```
+## Continuing development
 
-Rerun the build after changing anything under `resources/js` if you're only running `php artisan test` (rather than also using `npm run dev`) between changes.
+| File | Read it for |
+|---|---|
+| [`architecture/overview.md`](architecture/overview.md) | What the project is and how it fits together |
+| [`architecture/PROGRESS.md`](architecture/PROGRESS.md) | What is done and what is next |
+| [`architecture/architecture.md`](architecture/architecture.md) | Request flows and data model |
+| `CLAUDE.md`, `.ai/rules/` | Conventions for AI coding tools |
 
 ## Stopping
 
 ```bash
-docker compose down
+./vendor/bin/sail down
 ```

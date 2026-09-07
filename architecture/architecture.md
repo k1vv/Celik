@@ -8,8 +8,8 @@ running app. `PROGRESS.md` tracks what of this is finished vs. not.
 ## Stack
 - **Backend**: Laravel 13, PHP 8.5
 - **Frontend**: Inertia.js + React 19, Tailwind CSS 4, Vite
-- **Database**: MySQL 8.4, via the project's existing Laravel Sail/Docker setup — container `celik-laravel.test-1` (app) + `celik-mysql-1` (DB), named via `COMPOSE_PROJECT_NAME=celik` in `.env` (Docker Compose project names default to the directory name otherwise, which was `test_example-*` before this was set). `.env.example` defaults to SQLite, but this project runs on Sail's MySQL; use `./vendor/bin/sail <command>` for `artisan`/`composer`/`npm`/tests, not the host PHP install and not bare `docker exec` (which defaults to root and creates files the real `sail`-owned web process can't write to — this caused a real 500 once, see `PROGRESS.md`).
-- **Queue**: `QUEUE_CONNECTION=database` — configured, not yet used (no jobs exist yet; see Unfinished in `PROGRESS.md`)
+- **Database**: MySQL 8.4, via the project's existing Laravel Sail/Docker setup — container `celik-laravel.test-1` (app) + `celik-mysql-1` (DB), named via `COMPOSE_PROJECT_NAME=celik` in `.env` (Docker Compose project names default to the directory name otherwise, which was `test_example-*` before this was set). `.env.example` defaults to Sail's MySQL; use `./vendor/bin/sail <command>` for `artisan`/`composer`/`npm`/tests, not the host PHP install and not bare `docker exec` (which defaults to root and creates files the real `sail`-owned web process can't write to — this caused a real 500 once, see `PROGRESS.md`).
+- **Queue**: `QUEUE_CONNECTION=database`, run by the `queue` service in `compose.yaml`. Jobs: `GradeSubmission` (PDF grading) and `NotifySubmissionGraded` (n8n teacher email, see `n8n-workflow.md`)
 - **Testing**: PHPUnit (not Pest), TDD workflow via the `tdd` skill, Pint for formatting
 - **AI**: the quiz path needs none by design (see below). The homework path calls the Gemini `generateContent` API (function calling, mode `ANY`) directly via Laravel's `Http` facade (no SDK dependency added) — wired and tested against `Http::fake()`, and `GEMINI_API_KEY` is now configured and manually verified live against real submitted answers (typed and photographed/PDF). See `PROGRESS.md` for the specific verification runs. (Built against Anthropic first, migrated to Gemini for its free tier - see `PROGRESS.md`.)
 
@@ -108,7 +108,7 @@ Key columns beyond the obvious:
 - `attempts.needs_review` / `attempts.sampled_for_audit` — two independent flags: the former means "not trusted, diagnoses withheld" (low confidence, or the self-consistency double-call disagreed); the latter means "trusted, but randomly queued for teacher spot-check anyway" (~10% of homework attempts)
 - `attempts.raw_answer` / `attempts.photo_path` — mutually exclusive: a typed homework answer sets the former, a photographed/PDF answer sets the latter (and stores the file via `Storage`); never both
 - `attempts.score` / `attempts.max_score` (homework only) — a rubric-based mark (e.g. 14/20) from `HomeworkDiagnosisService`'s Gemini function schema, distinct from `is_correct`: a partially-correct answer can score above zero. Quiz attempts leave both null - correctness alone is the signal there
-- `attempts.teacher_score` (nullable) — a teacher's override of the AI-proposed `score`; `Attempt::effectiveScore()` returns `teacher_score ?? score`. Nothing writes this yet - awaits the teacher validation UI (`PROGRESS.md`)
+- `attempts.teacher_score` (nullable) — a teacher's override of the AI-proposed `score`; `Attempt::effectiveScore()` returns `teacher_score ?? score`. Written by `SubmissionController::validate()`; students see it via `Attempt::isTeacherMarked()`
 - `attempts.practice_set_id` / `attempts.submission_id` (nullable FKs, mutually exclusive in practice) — which teacher-authored grouping this attempt belongs to, if any: a `PracticeSet` (quiz) or a `Submission` (multi-question homework PDF)
 - `practice_sets` — `(classroom_id, skill_id, title, description, difficulty, estimated_minutes, due_at)`, a teacher's release of several `Question`s (via `practice_set_questions`, ordered) to one classroom
 - `practice_set_questions` — `(practice_set_id, question_id, order)` pivot, unique per pair
@@ -196,8 +196,8 @@ renders both the fresh result and every past submission's evidence
 ```
 Runs synchronously in-request today (up to two Gemini calls) - per
 `engine.md` §5 this should eventually be a queued job so grading doesn't
-block on a live network call, but no `Jobs/` class exists yet for either
-path (see `PROGRESS.md`). **Enforced**: `QuestionPolicy::submitHomework()`
+block on a live network call. Assignment PDFs already are (`GradeSubmission`);
+photo and typed answers are not (see `PROGRESS.md`). **Enforced**: `QuestionPolicy::submitHomework()`
 (see Authorization below) rejects with 403 if the submitted `question_id`
 isn't actually assigned (via `Assignment`) to one of the student's own
 classrooms - previously only the UI stopped *showing* unassigned questions.
@@ -309,20 +309,22 @@ SubmissionController::store()
         │
         ├─ Store the PDF, create Submission (extraction_status: pending)
         │
+        ├─ GradeSubmission::dispatch() and redirect back immediately. The rest
+        │     runs on the queue: 3 tries, then extraction_status: failed
+        │
         ├─ HomeworkPdfExtractionService::extractAnswers($path, $assignment
         │     ->questions - the known question list) - one Gemini call,
         │     transcribes each answer to plain text, flags any it can't
         │     confidently match to a known question
         │
-        ├─ Submission → extraction_status: extracted
-        │
-        └─ For each matched answer:
+        ├─ For each matched answer (graded first, then saved in one transaction
+        │     together with extraction_status: extracted):
               HomeworkDiagnosisService::diagnose($question, $text) - the
                  EXACT SAME call the single-question path uses, unchanged
               → Attempt::create([..., submission_id, ...]) per question
               → attempt_diagnoses per gapped dimension, same as today
         │
-Redirect back
+        └─ NotifySubmissionGraded::dispatch() → n8n → teacher email
 ```
 Unmatched answers are skipped entirely - no Attempt is created for them.
 This is Phase 3 of the multi-question PDF homework redesign - see
@@ -361,7 +363,8 @@ SubmissionController::validate()
 ```
 This is Phase 4 of the multi-question PDF homework redesign - see
 `PROGRESS.md` for the full phase-by-phase log and what's still missing
-(teacher assignment-creation-from-PDF flow, frontend re-pointing).
+(teacher assignment-creation-from-PDF flow). Teachers open it from the
+submission list on `/dashboard` or from the n8n email.
 
 ## What's designed but not built
 - **Method/Reasoning on the quiz path** — the optional "explain your answer"

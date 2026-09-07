@@ -252,7 +252,7 @@ The Docker/Sail containers and Composer package name still carried the scaffold'
 These only apply to free-text responses (the optional "explain your answer" field on a quiz item). Currently:
 - No "explain your answer" field exists in the quiz UI or `PracticeController`
 - No queued job exists to run this diagnosis asynchronously (meant to be non-blocking per `engine.md` §4)
-- `QUEUE_CONNECTION=database` is configured, but there is no `Jobs/` class yet and no queue worker running
+- The queue and its worker exist (`app/Jobs`, `queue` service); this job does not
 
 ### Content — real grounding exists, item bank now partially filled
 - The pre-existing seeder still generates arithmetic Math questions for the baseline, not Physics
@@ -345,21 +345,31 @@ viewing and overriding. Tests: `SubmissionValidationAuthorizationTest`,
 `SubmissionReviewPageTest`, `SubmissionValidationTest`. **103 passing, Pint
 clean, frontend builds clean.**
 
-**Not yet built** (Phases 5-6, see the plan file for full design):
+**Phase 6 - student PDF page (done, 2026-11-24)**: `SubmitHomework.jsx` posts an
+assignment's PDF to `/submissions` and shows its status; photo and typed answers
+remain for single-question assignments. Built test-first along with:
+- `GradeSubmission` job: queued grading, 3 tries, atomic save, `failed` state
+- `NotifySubmissionGraded` job + n8n teacher email (`n8n-workflow.md`)
+- `queue` and `n8n` services in `compose.yaml`
+- teacher dashboard submission list; students see the teacher's mark
+- `.env.example` and `README.md` verified from a clean clone on Sail/MySQL
+
+**134 PHPUnit tests passing.** `tests/practice-sets.test.mjs` and the "marked
+work shows answer analysis" test in `tests/student-work-pages.test.mjs` fail:
+they were written for older versions of those pages. Not yet verified against
+the live Gemini API: a real multi-question PDF.
+
+**Not yet built** (Phase 5, see the plan file for full design):
 - **Phase 5 - teacher assignment-creation flow**: upload a blank-question
   PDF → `extractQuestions()` → a review screen (edit text, confirm/change
   the suggested `kssm_code`, set `expected_answer` for objective ones) →
   save as real `Question`s + one `Assignment`. `AssignmentSeeder` remains
   the only way an Assignment gets made until this exists.
-- **Phase 6 - re-point the frontend**: `SubmitHomework.jsx`/
-  `StudentDashboardController` still only expose the single-question view
-  (via the Phase-1 `questions->first()` adapter) - retiring/extending that
-  once the multi-question submission UI exists.
 
 ## Suggested next steps, in priority order
 1. Commit the current working slice (the whole diagnosis-engine backend below "Not yet committed" above is still uncommitted, sitting alongside the teammate's already-merged frontend PRs on `main`) — do this before starting on 2-5, to avoid the two tracks drifting further apart
 2. **Run `homework:evaluate` live** against the real Gemini API (harness is built and tested, just not yet executed against the live key) and review the real numbers — specifically re-check the PNG-vs-PDF-style disagreement using the consistency metric
-3. **Continue the multi-question PDF homework redesign** (Phases 5-6 above) - teacher assignment-creation flow, then re-point the frontend
+3. **Continue the multi-question PDF homework redesign** (Phase 5 above) - teacher assignment-creation flow
 4. Extract and seed the rest of the Heat chapter (4.3 Specific Latent Heat, 4.4 Gas Laws) from the real textbook, expand the quiz MCQ item bank (currently 5 items across 4.1/4.2 only — target 5-8 per topic) across all four Heat topics, and extend the gold-set to cover them
 5. Add a real teacher-facing "create an Assignment"/"create a PracticeSet" flow, replacing the seeders as the only way either gets made (server-side classroom/assignment/practice-set authorization on `POST /homework` and `POST /practice` is now built — see "RBAC / per-resource authorization")
 6. Add the "explain your answer" field + a queued job stub for Method/Reasoning on the quiz path
