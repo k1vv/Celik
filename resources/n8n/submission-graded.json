@@ -1,0 +1,70 @@
+{
+    "id": "celikSubmissionGrd",
+    "name": "Celik: email teacher about submissions to review",
+    "active": false,
+    "nodes": [
+        {
+            "id": "5f0c1c1e-5d0a-4c0f-9a55-0c1f6a7d1a01",
+            "name": "Submission graded",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [0, 0],
+            "webhookId": "5f0c1c1e-5d0a-4c0f-9a55-0c1f6a7d1a02",
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "submission-graded",
+                "authentication": "headerAuth",
+                "responseMode": "onReceived",
+                "options": {}
+            },
+            "credentials": {
+                "httpHeaderAuth": { "id": "celikWebhookAuth1", "name": "Celik webhook secret" }
+            }
+        },
+        {
+            "id": "5f0c1c1e-5d0a-4c0f-9a55-0c1f6a7d1a03",
+            "name": "Needs review?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [240, 0],
+            "parameters": {
+                "conditions": {
+                    "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                    "combinator": "and",
+                    "conditions": [
+                        {
+                            "id": "5f0c1c1e-5d0a-4c0f-9a55-0c1f6a7d1a04",
+                            "leftValue": "={{ $json.body.needs_review }}",
+                            "rightValue": 0,
+                            "operator": { "type": "number", "operation": "gt" }
+                        }
+                    ]
+                },
+                "options": {}
+            }
+        },
+        {
+            "id": "5f0c1c1e-5d0a-4c0f-9a55-0c1f6a7d1a05",
+            "name": "Email teacher",
+            "type": "n8n-nodes-base.emailSend",
+            "typeVersion": 2.1,
+            "position": [480, -80],
+            "parameters": {
+                "fromEmail": "Celik <hello@example.com>",
+                "toEmail": "={{ $json.body.teacher_email }}",
+                "subject": "=Review needed: {{ $json.body.assignment }}",
+                "emailFormat": "text",
+                "text": "=A submission for \"{{ $json.body.assignment }}\" was graded, and {{ $json.body.needs_review }} answer(s) need your review.\n\nReview it here: {{ $json.body.review_url }}",
+                "options": { "appendAttribution": false }
+            },
+            "credentials": {
+                "smtp": { "id": "celikSmtpAccount1", "name": "Celik SMTP" }
+            }
+        }
+    ],
+    "connections": {
+        "Submission graded": { "main": [[{ "node": "Needs review?", "type": "main", "index": 0 }]] },
+        "Needs review?": { "main": [[{ "node": "Email teacher", "type": "main", "index": 0 }], []] }
+    },
+    "settings": { "executionOrder": "v1" }
+}

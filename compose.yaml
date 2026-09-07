@@ -48,9 +48,43 @@ services:
                 - '-p${DB_PASSWORD}'
             retries: 3
             timeout: 5s
+    queue:
+        # Reuses the image built by laravel.test, so it must never be pulled.
+        image: 'sail-8.5/app'
+        pull_policy: never
+        # Longer than GradeSubmission::$timeout, shorter than the queue's retry_after.
+        command: 'php artisan queue:listen --timeout=630'
+        restart: unless-stopped
+        environment:
+            # Must match laravel.test to read uploaded PDFs. Sail sets it; 1337 is
+            # the image's own user when it is unset.
+            WWWUSER: '${WWWUSER:-1337}'
+            LARAVEL_SAIL: 1
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            - laravel.test
+            - mysql
+    n8n:
+        image: 'docker.n8n.io/n8nio/n8n:2.48.8'
+        restart: unless-stopped
+        ports:
+            - '127.0.0.1:${FORWARD_N8N_PORT:-5678}:5678'
+        environment:
+            GENERIC_TIMEZONE: 'Asia/Kuala_Lumpur'
+            TZ: 'Asia/Kuala_Lumpur'
+        volumes:
+            - 'sail-n8n:/home/node/.n8n'
+            - './resources/n8n:/workflows:ro'
+        networks:
+            - sail
 networks:
     sail:
         driver: bridge
 volumes:
     sail-mysql:
+        driver: local
+    sail-n8n:
         driver: local

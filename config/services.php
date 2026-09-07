@@ -39,6 +39,11 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
     ],
 
+    'n8n' => [
+        'submission_webhook_url' => env('N8N_SUBMISSION_WEBHOOK_URL'),
+        'secret' => env('N8N_WEBHOOK_SECRET'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
