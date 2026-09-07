@@ -39,6 +39,7 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'result' => fn () => $request->session()->get('result'),
                 'correct_option' => fn () => $request->session()->get('correct_option'),
+                'submission_id' => fn () => $request->session()->get('submission_id'),
                 'homeworkDiagnosis' => fn () => $request->session()->get('homeworkDiagnosis'),
             ],
         ];

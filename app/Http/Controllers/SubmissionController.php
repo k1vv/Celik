@@ -2,24 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GradeSubmission;
 use App\Models\Assignment;
 use App\Models\Attempt;
 use App\Models\Submission;
-use App\Services\HomeworkDiagnosisService;
-use App\Services\HomeworkPdfExtractionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class SubmissionController extends Controller
 {
-    public function __construct(
-        private HomeworkPdfExtractionService $extraction,
-        private HomeworkDiagnosisService $diagnosis,
-    ) {}
-
     public function show(Submission $submission): Response
     {
         $this->authorize('validate', $submission);
@@ -95,68 +88,7 @@ class SubmissionController extends Controller
             'extraction_status' => 'pending',
         ]);
 
-        $questions = $assignment->questions()->orderBy('assignment_questions.order')->get();
-        $questionsByOrder = $questions->keyBy(fn ($question) => $question->pivot->order);
-        $knownQuestions = $questions->map(fn ($question) => [
-            'order' => $question->pivot->order,
-            'question_text' => $question->body,
-        ])->all();
-
-        $answers = $this->extraction->extractAnswers(Storage::path($path), $knownQuestions);
-        $submission->update(['extraction_status' => 'extracted']);
-
-        foreach ($answers as $answer) {
-            if (! $answer['matched']) {
-                continue;
-            }
-
-            $question = $questionsByOrder->get($answer['order']);
-
-            if (! $question) {
-                continue;
-            }
-
-            $diagnosis = $this->diagnosis->diagnose($question, $answer['student_answer_text']);
-
-            $attempt = Attempt::create([
-                'user_id' => $request->user()->id,
-                'question_id' => $question->id,
-                'submission_id' => $submission->id,
-                'skill_id' => $question->skill_id,
-                'source' => 'homework',
-                'raw_answer' => $answer['student_answer_text'],
-                'is_correct' => $diagnosis['correct'],
-                'score' => $diagnosis['score'],
-                'max_score' => $diagnosis['max_score'],
-                'confidence' => $diagnosis['confidence'],
-                'needs_review' => $diagnosis['needs_review'],
-                'sampled_for_audit' => $diagnosis['sampled_for_audit'],
-            ]);
-
-            if ($diagnosis['needs_review']) {
-                continue;
-            }
-
-            foreach (['conceptual', 'method', 'reasoning'] as $dimension) {
-                $tagKey = $dimension === 'conceptual' ? 'tag' : 'issue';
-                $tag = $diagnosis[$dimension][$tagKey] ?? null;
-
-                if ($tag) {
-                    $attempt->diagnoses()->create([
-                        'dimension' => $dimension,
-                        'tag' => $tag,
-                        'evidence' => $diagnosis[$dimension]['evidence'] ?? null,
-                    ]);
-                }
-            }
-
-            if (! $diagnosis['curriculum']['mastered'] && $diagnosis['curriculum']['kssm_code']) {
-                $attempt->diagnoses()->create([
-                    'dimension' => 'curriculum',
-                    'tag' => $diagnosis['curriculum']['kssm_code'],
-                ]);
-            }
-        }
+        GradeSubmission::dispatch($submission);
 
         return redirect()->back()->with(['submission_id' => $submission->id]);
     }
