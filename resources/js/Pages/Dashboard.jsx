@@ -1,4 +1,5 @@
 import { Head, router } from '@inertiajs/react';
+import SubmissionList from '../Components/Teacher/SubmissionList';
 import Layout from '../Layout';
 
 function cellColor(score) {
@@ -14,7 +15,7 @@ const DIMENSION_LABELS = {
     reasoning: 'Reasoning',
 };
 
-export default function Dashboard({ classrooms, classroom, heatmap, gaps, gapSummary }) {
+export default function Dashboard({ classrooms, classroom, heatmap, gaps, gapSummary, submissions }) {
     if (!classroom) {
         return (
             <Layout>
@@ -50,6 +51,8 @@ export default function Dashboard({ classrooms, classroom, heatmap, gaps, gapSum
                     </select>
                 )}
             </div>
+
+            <SubmissionList submissions={submissions} />
 
             {gaps.length > 0 && (
                 <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4">

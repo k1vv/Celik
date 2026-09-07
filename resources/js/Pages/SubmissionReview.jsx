@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import Layout from '../Layout';
 
 const DIMENSION_LABELS = {
@@ -36,7 +36,11 @@ export default function SubmissionReview({ submission, attempts }) {
         <Layout>
             <Head title={`Review — ${submission.assignment_title}`} />
 
-            <div className="flex items-center justify-between">
+            <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-800">
+                &larr; Back to dashboard
+            </Link>
+
+            <div className="mt-3 flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-semibold">{submission.assignment_title}</h1>
                     <p className="text-sm text-slate-500">{submission.student_name}</p>

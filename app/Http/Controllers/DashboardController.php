@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Classroom;
 use App\Models\Mastery;
+use App\Models\Submission;
 use App\Services\AdaptivePracticeService;
 use App\Services\GapSummaryService;
 use Illuminate\Http\Request;
@@ -28,6 +30,7 @@ class DashboardController extends Controller
                 'heatmap' => ['students' => [], 'skills' => [], 'cells' => []],
                 'gaps' => [],
                 'gapSummary' => [],
+                'submissions' => [],
             ]);
         }
 
@@ -88,6 +91,45 @@ class DashboardController extends Controller
             ],
             'gaps' => $gaps,
             'gapSummary' => $this->gapSummary->forStudents($students->pluck('id')),
+            'submissions' => $this->submissionsFor($classroom),
         ]);
+    }
+
+    /**
+     * PDF submissions for one classroom: those with answers the AI was unsure
+     * about first, then other unchecked ones, then checked ones.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function submissionsFor(Classroom $classroom): array
+    {
+        return Submission::query()
+            ->whereHas('assignment', fn ($query) => $query->where('classroom_id', $classroom->id))
+            ->with(['user', 'assignment' => fn ($query) => $query->withCount('questions')])
+            ->withCount([
+                'attempts',
+                'attempts as needs_review_count' => fn ($query) => $query->where('needs_review', true),
+            ])
+            ->latest()
+            ->latest('id')
+            ->get()
+            ->sortBy(fn (Submission $submission) => match (true) {
+                $submission->teacher_validated_at !== null => 2,
+                $submission->needs_review_count > 0 => 0,
+                default => 1,
+            })
+            ->map(fn (Submission $submission) => [
+                'id' => $submission->id,
+                'student_name' => $submission->user->name,
+                'assignment_title' => $submission->assignment->title,
+                'extraction_status' => $submission->extraction_status,
+                'question_count' => $submission->assignment->questions_count,
+                'answered_count' => $submission->attempts_count,
+                'needs_review_count' => $submission->needs_review_count,
+                'teacher_validated_at' => $submission->teacher_validated_at,
+                'created_at' => $submission->created_at,
+            ])
+            ->values()
+            ->all();
     }
 }
