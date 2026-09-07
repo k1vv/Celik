@@ -1,90 +1,60 @@
-import { router, useForm, usePage } from '@inertiajs/react';
-import { useRef, useState } from 'react';
+import { router, useForm, usePage, usePoll } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
 import StudentDashboard from '../Components/Student/StudentDashboard';
 import { EmptyState } from '../Components/Student/DashboardComponents';
+import { availableModes, homeworkRequest, isGrading } from '../Components/Student/homeworkRequest';
 
 const filters = [
     { id: 'all', label: 'All' },
     { id: 'practice', label: 'Needs practice' },
     { id: 'review', label: 'Pending review' },
     { id: 'clean', label: 'Clean' },
+    { id: 'marked', label: 'Marked by teacher' },
 ];
 
-const statusStyle = { practice: 'bg-[#fff6d7] text-[#806d16]', clean: 'bg-auth-soft text-auth-green', review: 'bg-[#f7f7f2] text-auth-muted' };
-const statusLabel = { practice: 'Needs practice', clean: 'Clean', review: 'Pending review' };
+const statusStyle = { practice: 'bg-[#fff6d7] text-[#806d16]', clean: 'bg-auth-soft text-auth-green', review: 'bg-[#f7f7f2] text-auth-muted', marked: 'bg-auth-soft text-auth-green' };
+const statusLabel = { practice: 'Needs practice', clean: 'Clean', review: 'Pending review', marked: 'Marked by teacher' };
 
-// Matches HomeworkController's `max:10240` (KB) validation rule.
+const modeLabel = { pdf: 'PDF', photo: 'Photo', typed: 'Type answer' };
+
+// Matches the `max:10240` (KB) rule in HomeworkController and SubmissionController.
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export default function SubmitHomework(props) {
     return (
         <StudentDashboard {...props} initialView="submit">
-            <SubmitHomeworkPage classroom={props.classroom} assignments={props.assignments} pastAttempts={props.pastAttempts} />
+            <SubmitHomeworkPage classroom={props.classroom} assignments={props.assignments} pastAttempts={props.pastAttempts} submissions={props.submissions} />
         </StudentDashboard>
     );
 }
 
-export function SubmitHomeworkPage({ classroom, assignments = [], pastAttempts = [] }) {
+export function SubmitHomeworkPage({ classroom, assignments = [], pastAttempts = [], submissions = [] }) {
     const { flash } = usePage().props;
-    const fileInput = useRef(null);
-    const cameraInput = useRef(null);
-    const [mode, setMode] = useState('file');
-    const [fileError, setFileError] = useState('');
     const [filter, setFilter] = useState('all');
     const [activeAssignmentId, setActiveAssignmentId] = useState(null);
 
-    const { data, setData, post, processing, reset } = useForm({
-        question_id: '',
-        answer: '',
-        photo: null,
-    });
-
     const activeAssignment = assignments.find((assignment) => assignment.id === activeAssignmentId) ?? null;
-    const submittedQuestionIds = new Set(pastAttempts.map((attempt) => attempt.question_id));
+    const grading = isGrading(submissions);
+    const { start, stop } = usePoll(4000, { only: ['submissions', 'pastAttempts', 'assignments'] }, { autoStart: false });
 
-    function selectAssignment(assignment) {
-        setActiveAssignmentId(assignment.id);
-        setData((current) => ({ ...current, question_id: assignment.question_id, answer: '', photo: null }));
-        setMode('file');
-        setFileError('');
-        if (fileInput.current) fileInput.current.value = '';
-        if (cameraInput.current) cameraInput.current.value = '';
-    }
+    // usePoll returns new start/stop functions on every render, so only a
+    // change in `grading` may restart the timer.
+    useEffect(() => {
+        if (!grading) return;
 
-    function selectFile(event) {
-        const selectedFile = event.target.files?.[0] || null;
+        start();
 
-        if (selectedFile && selectedFile.size > MAX_FILE_BYTES) {
-            setFileError('Choose a file smaller than 10 MB.');
-            event.target.value = '';
-            return;
-        }
+        return () => stop();
+    }, [grading]);
 
-        setFileError('');
-        setData('photo', selectedFile);
-    }
-
-    function submit(event) {
-        event.preventDefault();
-        post('/homework', {
-            preserveScroll: true,
-            onSuccess: () => {
-                reset('answer', 'photo');
-                setActiveAssignmentId(null);
-                if (fileInput.current) fileInput.current.value = '';
-                if (cameraInput.current) cameraInput.current.value = '';
-            },
-        });
-    }
-
-    const canSubmit = data.question_id && (mode === 'typed' ? data.answer.trim().length > 0 : !!data.photo);
+    const newSubmission = submissions.find((submission) => submission.id === flash?.submission_id);
 
     const attemptsWithStatus = pastAttempts.map((attempt) => ({
         ...attempt,
-        status: attempt.needs_review ? 'review' : attempt.is_correct ? 'clean' : 'practice',
+        status: attempt.teacher_marked ? 'marked' : attempt.needs_review ? 'review' : attempt.is_correct ? 'clean' : 'practice',
     }));
     const visibleAttempts = filter === 'all' ? attemptsWithStatus : attemptsWithStatus.filter((attempt) => attempt.status === filter);
-    const notSubmittedCount = assignments.filter((assignment) => !submittedQuestionIds.has(assignment.question_id)).length;
+    const notSubmittedCount = assignments.filter((assignment) => !assignment.submitted).length;
 
     const diagnosis = flash?.homeworkDiagnosis;
     const flashResult = flash?.result;
@@ -98,56 +68,18 @@ export function SubmitHomeworkPage({ classroom, assignments = [], pastAttempts =
 
             {!assignments.length && <div className="mt-7"><EmptyState title="No homework has been released yet." description="Your teacher hasn't assigned any homework to your class." /></div>}
 
-            {assignments.length > 0 && <form onSubmit={submit} className="mt-7 rounded-[1.5rem] border border-white/80 bg-white p-4 shadow-xs sm:p-5">
+            {assignments.length > 0 && <div className="mt-7 rounded-[1.5rem] border border-white/80 bg-white p-4 shadow-xs sm:p-5">
                 <label className="block text-xs font-semibold text-auth-muted">Assignment
-                    <select
-                        value={activeAssignmentId ?? ''}
-                        onChange={(event) => {
-                            const assignment = assignments.find((item) => item.id === Number(event.target.value));
-                            if (assignment) selectAssignment(assignment);
-                        }}
-                        className="auth-input mt-2 bg-white"
-                    >
+                    <select value={activeAssignmentId ?? ''} onChange={(event) => setActiveAssignmentId(Number(event.target.value))} className="auth-input mt-2 bg-white">
                         <option value="" disabled>Choose an assignment</option>
-                        {assignments.map((assignment) => <option key={assignment.id} value={assignment.id}>
-                            {assignment.title}{submittedQuestionIds.has(assignment.question_id) ? ' · Already submitted' : ''}
-                        </option>)}
+                        {assignments.map((assignment) => <option key={assignment.id} value={assignment.id}>{`${assignment.title}${assignment.submitted ? ' · Already submitted' : ''}`}</option>)}
                     </select>
                 </label>
 
-                {activeAssignment && <>
-                    <p className="mt-4 rounded-xl bg-[#fafaf5] p-4 text-sm leading-6 text-auth-ink">{activeAssignment.question_body}</p>
-                    <p className="mt-2 text-xs text-auth-muted">
-                        {activeAssignment.skill_name}{activeAssignment.module_name ? ` · ${activeAssignment.module_name}` : ''}
-                        {activeAssignment.due_at ? ` · Due ${new Date(activeAssignment.due_at).toLocaleString()}` : ''}
-                    </p>
-                    {submittedQuestionIds.has(activeAssignment.question_id) && <p className="mt-2 inline-flex rounded-full bg-auth-soft px-2.5 py-1 text-[11px] font-semibold text-auth-green">Already submitted — you can submit again</p>}
+                {activeAssignment && <HomeworkForm key={activeAssignment.id} assignment={activeAssignment} onSubmitted={() => setActiveAssignmentId(null)} />}
+            </div>}
 
-                    <div className="mt-5 inline-flex rounded-xl bg-[#f7f7f2] p-1">
-                        <button type="button" onClick={() => setMode('file')} aria-pressed={mode === 'file'} className={`rounded-lg px-3 py-2 text-xs font-semibold ${mode === 'file' ? 'bg-white text-auth-ink shadow-xs' : 'text-auth-muted'}`}>Photo or PDF</button>
-                        <button type="button" onClick={() => setMode('typed')} aria-pressed={mode === 'typed'} className={`rounded-lg px-3 py-2 text-xs font-semibold ${mode === 'typed' ? 'bg-white text-auth-ink shadow-xs' : 'text-auth-muted'}`}>Type answer</button>
-                    </div>
-
-                    {mode === 'file' ? <div className="mt-4 rounded-2xl border border-dashed border-auth-green/30 bg-[#fafaf5] px-5 py-8 text-center sm:px-8">
-                        <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-auth-soft text-auth-green" aria-hidden="true"><UploadIcon /></span>
-                        <h3 className="mt-4 text-lg font-semibold tracking-tight">Drop your homework here</h3>
-                        <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-auth-muted">A photo of your written work, or a PDF · up to 10 MB</p>
-                        <input ref={fileInput} type="file" accept="image/*,.pdf,application/pdf" onChange={selectFile} className="sr-only" aria-label="Choose homework file" />
-                        <input ref={cameraInput} type="file" accept="image/*" capture="environment" onChange={selectFile} className="sr-only" aria-label="Take a homework photo" />
-                        <div className="mt-6 flex flex-wrap justify-center gap-3 border-t border-auth-border pt-5">
-                            <button type="button" onClick={() => fileInput.current?.click()} className="auth-focus inline-flex items-center justify-center rounded-xl bg-auth-green px-5 py-3 text-sm font-semibold text-white hover:bg-auth-green/90">Choose file</button>
-                            <button type="button" onClick={() => cameraInput.current?.click()} className="auth-focus inline-flex items-center gap-2 rounded-xl border border-auth-border bg-white px-5 py-3 text-sm font-semibold text-auth-ink hover:bg-auth-page"><CameraIcon />Use camera</button>
-                        </div>
-                        {data.photo && <div className="mt-5 flex items-center gap-3 rounded-xl border border-auth-border bg-white px-4 py-3 text-left"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-auth-soft text-auth-green"><UploadIcon className="size-4" /></span><div className="min-w-0"><p className="truncate text-sm font-semibold">{data.photo.name}</p><p className="mt-0.5 text-xs text-auth-muted">{(data.photo.size / 1024 / 1024).toFixed(1)} MB · ready to attach</p></div></div>}
-                        {fileError && <p className="mt-4 text-sm font-medium text-red-700" role="alert">{fileError}</p>}
-                    </div> : <label className="mt-4 block text-sm font-semibold">Your answer
-                        <textarea value={data.answer} onChange={(event) => setData('answer', event.target.value)} className="auth-focus mt-2 min-h-32 w-full rounded-xl border border-auth-border bg-[#fafaf5] p-4 text-sm font-normal" placeholder="Explain your reasoning, not just the result." />
-                    </label>}
-
-                    <button type="submit" disabled={!canSubmit || processing} className="auth-focus mt-6 flex w-full items-center justify-between rounded-xl bg-auth-green px-5 py-3.5 text-sm font-semibold text-white hover:bg-auth-green/90 disabled:cursor-not-allowed disabled:bg-auth-green/35"><span>{processing ? 'Submitting…' : 'Submit homework'}</span><ArrowIcon /></button>
-                    <p className="mt-3 text-center text-[11px] leading-5 text-auth-muted">Your teacher sets the mark. Celik only points to where the reasoning turns.</p>
-                </>}
-            </form>}
+            {newSubmission && <SubmissionResult submission={newSubmission} />}
 
             {flashResult && <div className="mt-5 rounded-2xl border border-auth-border bg-white p-5">
                 <p className="text-sm font-semibold">{flashResult === 'correct' ? 'Correct — no gaps found.' : flashResult === 'pending_review' ? 'Submitted — pending teacher review.' : 'Recorded — here’s what to work on.'}</p>
@@ -167,6 +99,7 @@ export function SubmitHomeworkPage({ classroom, assignments = [], pastAttempts =
 
         <section className="min-w-0 rounded-[2rem] border border-auth-border bg-white p-5 shadow-xs sm:p-7 lg:p-8">
             <div><h2 className="text-2xl font-semibold tracking-tight">Released to you</h2><p className="mt-3 max-w-lg text-sm leading-6 text-auth-muted">Every homework you've submitted, with the diagnosis behind each result.</p></div>
+            {submissions.length > 0 && <div className="mt-6"><h3 className="text-sm font-semibold">PDF submissions</h3><ul className="mt-3 grid gap-2">{submissions.map((submission) => <SubmissionRow key={submission.id} submission={submission} />)}</ul></div>}
             <div className="mt-6 inline-flex flex-wrap rounded-xl bg-[#f7f7f2] p-1" aria-label="Filter released homework">{filters.map((item) => <button key={item.id} type="button" onClick={() => setFilter(item.id)} aria-pressed={filter === item.id} className={`auth-focus rounded-lg px-3 py-2 text-xs font-semibold sm:px-4 ${filter === item.id ? 'bg-white text-auth-ink shadow-xs' : 'text-auth-muted hover:text-auth-ink'}`}>{item.label}</button>)}</div>
 
             <div className="mt-5 space-y-3">
@@ -181,6 +114,137 @@ export function SubmitHomeworkPage({ classroom, assignments = [], pastAttempts =
             </div>
         </section>
     </div>;
+}
+
+export function HomeworkForm({ assignment, onSubmitted }) {
+    const pdfInput = useRef(null);
+    const photoInput = useRef(null);
+    const cameraInput = useRef(null);
+    const modes = availableModes(assignment);
+    const [mode, setMode] = useState(modes[0]);
+    const [fileError, setFileError] = useState('');
+    const { data, setData, post, transform, processing, errors, clearErrors } = useForm({ pdf: null, photo: null, answer: '' });
+
+    const request = homeworkRequest(mode, assignment, data);
+    const error = fileError || Object.values(errors)[0];
+
+    function selectMode(nextMode) {
+        setMode(nextMode);
+        setFileError('');
+        clearErrors();
+    }
+
+    function selectFile(field, event) {
+        const selectedFile = event.target.files?.[0] || null;
+        event.target.value = '';
+
+        if (!selectedFile) return;
+
+        clearErrors();
+
+        if (selectedFile.size > MAX_FILE_BYTES) {
+            setFileError('Choose a file of 10 MB or less.');
+            return;
+        }
+
+        setFileError('');
+        setData(field, selectedFile);
+    }
+
+    function submit(event) {
+        event.preventDefault();
+
+        if (!request) return;
+
+        transform(() => request.data);
+        post(request.url, { preserveScroll: true, onSuccess: () => onSubmitted?.() });
+    }
+
+    return <form onSubmit={submit}>
+        <ol className="mt-4 grid gap-3 rounded-xl bg-[#fafaf5] p-4 text-sm leading-6 text-auth-ink">
+            {assignment.questions.map((question) => <li key={question.id} className="flex gap-3">{assignment.questions.length > 1 && <span className="font-semibold text-auth-green">{question.order}.</span>}<span>{question.body}</span></li>)}
+        </ol>
+        <p className="mt-2 text-xs text-auth-muted">
+            {assignment.skill_name}{assignment.module_name ? ` · ${assignment.module_name}` : ''}
+            {assignment.due_at ? ` · Due ${new Date(assignment.due_at).toLocaleString()}` : ''}
+        </p>
+        {assignment.submitted && <p className="mt-2 inline-flex rounded-full bg-auth-soft px-2.5 py-1 text-[11px] font-semibold text-auth-green">Already submitted — you can submit again</p>}
+
+        {modes.length > 1 && <div className="mt-5 flex"><div className="inline-flex rounded-xl bg-[#f7f7f2] p-1" role="group" aria-label="How to hand in">{modes.map((item) => <button key={item} type="button" disabled={processing} onClick={() => selectMode(item)} aria-pressed={mode === item} className={`auth-focus rounded-lg px-3 py-2 text-xs font-semibold ${mode === item ? 'bg-white text-auth-ink shadow-xs' : 'text-auth-muted'}`}>{modeLabel[item]}</button>)}</div></div>}
+
+        {mode === 'pdf' && <FileDrop title="Upload your answers as one PDF" description={assignment.questions.length > 1 ? 'Include every question and number your answers · up to 10 MB' : 'One PDF of your work · up to 10 MB'} file={data.pdf}>
+            <input ref={pdfInput} type="file" accept="application/pdf,.pdf" onChange={(event) => selectFile('pdf', event)} className="sr-only" aria-label="Choose homework PDF" tabIndex={-1} />
+            <button type="button" disabled={processing} onClick={() => pdfInput.current?.click()} className="auth-focus inline-flex items-center justify-center rounded-xl bg-auth-green px-5 py-3 text-sm font-semibold text-white hover:bg-auth-green/90">Choose PDF</button>
+        </FileDrop>}
+
+        {mode === 'photo' && <FileDrop title="Add a photo of your work" description="JPG or PNG · up to 10 MB" file={data.photo}>
+            <input ref={photoInput} type="file" accept="image/jpeg,image/png" onChange={(event) => selectFile('photo', event)} className="sr-only" aria-label="Choose homework photo" tabIndex={-1} />
+            <input ref={cameraInput} type="file" accept="image/jpeg,image/png" capture="environment" onChange={(event) => selectFile('photo', event)} className="sr-only" aria-label="Take a homework photo" tabIndex={-1} />
+            <button type="button" disabled={processing} onClick={() => photoInput.current?.click()} className="auth-focus inline-flex items-center justify-center rounded-xl bg-auth-green px-5 py-3 text-sm font-semibold text-white hover:bg-auth-green/90">Choose photo</button>
+            <button type="button" disabled={processing} onClick={() => cameraInput.current?.click()} className="auth-focus inline-flex items-center gap-2 rounded-xl border border-auth-border bg-white px-5 py-3 text-sm font-semibold text-auth-ink hover:bg-auth-page"><CameraIcon />Use camera</button>
+        </FileDrop>}
+
+        {mode === 'typed' && <label className="mt-4 block text-sm font-semibold">Your answer
+            <textarea value={data.answer} onChange={(event) => setData('answer', event.target.value)} className="auth-focus mt-2 min-h-32 w-full rounded-xl border border-auth-border bg-[#fafaf5] p-4 text-sm font-normal" placeholder="Explain your reasoning, not just the result." />
+        </label>}
+
+        {error && <p className="mt-4 text-sm font-medium text-red-700" role="alert">{error}</p>}
+
+        <button type="submit" disabled={!request || processing} className="auth-focus mt-6 flex w-full items-center justify-between rounded-xl bg-auth-green px-5 py-3.5 text-sm font-semibold text-white hover:bg-auth-green/90 disabled:cursor-not-allowed disabled:bg-auth-green/35"><span>{processing ? 'Submitting…' : 'Submit homework'}</span><ArrowIcon /></button>
+        <p className="mt-3 text-center text-[11px] leading-5 text-auth-muted" aria-live="polite">{processing && mode !== 'pdf' ? 'This can take a minute. Keep this page open.' : 'Your teacher sets the mark. Celik only points to where the reasoning turns.'}</p>
+    </form>;
+}
+
+function FileDrop({ title, description, file, children }) {
+    return <div className="mt-4 rounded-2xl border border-dashed border-auth-green/30 bg-[#fafaf5] px-5 py-8 text-center sm:px-8">
+        <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-auth-soft text-auth-green" aria-hidden="true"><UploadIcon /></span>
+        <h3 className="mt-4 text-lg font-semibold tracking-tight">{title}</h3>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-auth-muted">{description}</p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3 border-t border-auth-border pt-5">{children}</div>
+        {file && <div className="mt-5 flex items-center gap-3 rounded-xl border border-auth-border bg-white px-4 py-3 text-left"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-auth-soft text-auth-green"><UploadIcon className="size-4" /></span><div className="min-w-0"><p className="truncate text-sm font-semibold">{file.name}</p><p className="mt-0.5 text-xs text-auth-muted">{(file.size / 1024 / 1024).toFixed(1)} MB · ready to submit</p></div></div>}
+    </div>;
+}
+
+function SubmissionResult({ submission }) {
+    const unread = submission.question_count - submission.answered_count;
+
+    if (submission.extraction_status === 'pending') return <ResultPanel title={`${submission.assignment_title} was handed in.`}>
+        <p>Being graded now. This can take a few minutes, and you can leave this page.</p>
+    </ResultPanel>;
+
+    if (submission.extraction_status === 'failed') return <ResultPanel title={`${submission.assignment_title} could not be read.`}>
+        <p>Nothing was graded. Please hand it in again in a few minutes.</p>
+    </ResultPanel>;
+
+    return <ResultPanel title={`${submission.assignment_title} was graded.`}>
+        <p>{`${submission.answered_count} of ${submission.question_count} answers read.`}{submission.needs_review_count > 0 && ` ${submission.needs_review_count} waiting for your teacher.`}</p>
+        {unread > 0 && <p>Answers that could not be matched to a question were not graded. Number your answers clearly and submit again if something is missing.</p>}
+    </ResultPanel>;
+}
+
+function ResultPanel({ title, children }) {
+    return <div className="mt-5 rounded-2xl border border-auth-border bg-white p-5" role="status">
+        <p className="text-sm font-semibold">{title}</p>
+        <div className="mt-2 grid gap-2 text-sm text-auth-muted">{children}</div>
+    </div>;
+}
+
+function submissionStatus(submission) {
+    if (submission.extraction_status === 'failed') return { label: 'Could not be read', style: 'bg-[#f9e5de] text-[#a44d3b]' };
+    if (submission.extraction_status !== 'extracted') return { label: 'Being graded', style: statusStyle.review };
+    if (submission.teacher_validated_at) return { label: 'Checked by teacher', style: statusStyle.clean };
+    if (submission.needs_review_count > 0) return { label: 'Waiting for teacher', style: statusStyle.practice };
+
+    return { label: 'Graded', style: statusStyle.clean };
+}
+
+function SubmissionRow({ submission }) {
+    const status = submissionStatus(submission);
+
+    return <li className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-auth-border px-4 py-3">
+        <div><p className="text-sm font-semibold">{submission.assignment_title}</p><p className="mt-0.5 text-xs text-auth-muted">{submission.extraction_status === 'extracted' && `${submission.answered_count} of ${submission.question_count} answers read · `}{new Date(submission.created_at).toLocaleDateString()}</p></div>
+        <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${status.style}`}>{status.label}</span>
+    </li>;
 }
 
 function StatTile({ value, label }) {

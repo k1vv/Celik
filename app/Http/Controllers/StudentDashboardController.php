@@ -4,8 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Assignment;
 use App\Models\Attempt;
+use App\Models\Question;
+use App\Models\Submission;
 use App\Services\LearningGapService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,7 +24,7 @@ class StudentDashboardController extends Controller
         return Inertia::render('StudentDashboard', [
             'classroom' => $classroom,
             'dashboardData' => $this->dashboardDataFor($request, $classroom),
-            'assignments' => $this->assignmentsFor($classroom),
+            'assignments' => $this->assignmentsFor($request, $classroom),
             'pastAttempts' => $this->pastHomeworkAttemptsFor($request),
         ]);
     }
@@ -31,8 +35,9 @@ class StudentDashboardController extends Controller
 
         return Inertia::render('SubmitHomework', [
             'classroom' => $classroom,
-            'assignments' => $this->assignmentsFor($classroom),
+            'assignments' => $this->assignmentsFor($request, $classroom),
             'pastAttempts' => $this->pastHomeworkAttemptsFor($request),
+            'submissions' => $this->submissionsFor($request),
         ]);
     }
 
@@ -62,22 +67,22 @@ class StudentDashboardController extends Controller
      * @param  array{id: int, name: string, subject: string}|null  $classroom
      * @return array<int, array<string, mixed>>
      */
-    private function assignmentsFor(?array $classroom): array
+    private function assignmentsFor(Request $request, ?array $classroom): array
     {
         if (! $classroom) {
             return [];
         }
 
+        $answeredQuestionIds = $this->answeredHomeworkQuestionIds($request);
+
         return Assignment::query()
             ->where('classroom_id', $classroom['id'])
             ->with('questions.skill.module')
+            ->withExists(['submissions as has_handed_in_pdf' => fn ($query) => $this->handedInBy($query, $request)])
             ->get()
-            ->map(function (Assignment $assignment) {
-                // Single-question assignments only, for now - the multi-
-                // question PDF flow (§ Assignment now bundles many Questions)
-                // has its own Submission-based page coming later; this page
-                // still reflects "the first/only bundled question" until
-                // that lands, per architecture/PROGRESS.md.
+            ->map(function (Assignment $assignment) use ($answeredQuestionIds) {
+                // The question_* keys describe the first question, for pages
+                // that show one topic per assignment.
                 $question = $assignment->questions->first();
 
                 return [
@@ -89,6 +94,13 @@ class StudentDashboardController extends Controller
                     'kssm_code' => $question?->kssm_code,
                     'skill_name' => $question?->skill->name,
                     'module_name' => $question?->skill->module?->name,
+                    'questions' => $assignment->questions->map(fn (Question $question) => [
+                        'id' => $question->id,
+                        'order' => $question->pivot->order,
+                        'body' => $question->body,
+                    ])->all(),
+                    'submitted' => $assignment->has_handed_in_pdf
+                        || $assignment->questions->pluck('id')->intersect($answeredQuestionIds)->isNotEmpty(),
                 ];
             })
             ->all();
@@ -144,11 +156,12 @@ class StudentDashboardController extends Controller
             return null;
         }
 
-        $submittedQuestionIds = $request->user()->attempts()->where('source', 'homework')->pluck('question_id');
+        $answeredQuestionIds = $this->answeredHomeworkQuestionIds($request);
 
         $assignment = Assignment::query()
             ->where('classroom_id', $classroom['id'])
-            ->whereDoesntHave('questions', fn ($query) => $query->whereIn('questions.id', $submittedQuestionIds))
+            ->whereDoesntHave('questions', fn ($query) => $query->whereIn('questions.id', $answeredQuestionIds))
+            ->whereDoesntHave('submissions', fn ($query) => $this->handedInBy($query, $request))
             ->with('questions.skill')
             ->orderBy('due_at')
             ->first();
@@ -164,12 +177,63 @@ class StudentDashboardController extends Controller
         ];
     }
 
+    /**
+     * Questions answered one at a time. Answers read from a PDF are left out:
+     * questions are shared between assignments, and a PDF only hands in its own.
+     *
+     * @return Collection<int, int>
+     */
+    private function answeredHomeworkQuestionIds(Request $request): Collection
+    {
+        return $request->user()->attempts()
+            ->where('source', 'homework')
+            ->whereNull('submission_id')
+            ->pluck('question_id');
+    }
+
+    /**
+     * Limits a submissions query to PDFs this student has handed in. A failed
+     * one still has to be handed in again, so it does not count.
+     *
+     * @param  Builder<Submission>  $query
+     */
+    private function handedInBy(Builder $query, Request $request): void
+    {
+        $query->where('user_id', $request->user()->id)->whereIn('extraction_status', ['pending', 'extracted']);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function submissionsFor(Request $request): array
+    {
+        return Submission::query()
+            ->where('user_id', $request->user()->id)
+            ->with(['assignment' => fn ($query) => $query->withCount('questions')])
+            ->withCount([
+                'attempts',
+                'attempts as needs_review_count' => fn ($query) => $query->where('needs_review', true),
+            ])
+            ->latest()
+            ->latest('id')
+            ->get()
+            ->map(fn (Submission $submission) => [
+                'id' => $submission->id,
+                'assignment_title' => $submission->assignment->title,
+                'extraction_status' => $submission->extraction_status,
+                'question_count' => $submission->assignment->questions_count,
+                'answered_count' => $submission->attempts_count,
+                'needs_review_count' => $submission->needs_review_count,
+                'teacher_validated_at' => $submission->teacher_validated_at,
+                'created_at' => $submission->created_at,
+            ])
+            ->all();
+    }
+
     /** @return array<int, array<string, mixed>> */
     private function pastHomeworkAttemptsFor(Request $request): array
     {
         return $request->user()->attempts()
             ->where('source', 'homework')
-            ->with('question', 'diagnoses')
+            ->with('question', 'diagnoses', 'submission')
             ->latest()
             ->get()
             ->map(fn (Attempt $attempt) => [
@@ -179,9 +243,10 @@ class StudentDashboardController extends Controller
                 'kssm_code' => $attempt->question->kssm_code,
                 'raw_answer' => $attempt->raw_answer,
                 'is_correct' => $attempt->is_correct,
-                'score' => $attempt->score,
+                'score' => $attempt->effectiveScore(),
                 'max_score' => $attempt->max_score,
-                'needs_review' => $attempt->needs_review,
+                'needs_review' => $attempt->needs_review && ! $attempt->isTeacherMarked(),
+                'teacher_marked' => $attempt->isTeacherMarked(),
                 'sampled_for_audit' => $attempt->sampled_for_audit,
                 'created_at' => $attempt->created_at,
                 'diagnoses' => $attempt->diagnoses->map(fn ($diagnosis) => [

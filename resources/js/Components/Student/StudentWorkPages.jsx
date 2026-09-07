@@ -28,7 +28,7 @@ export function MarkedWorkPage({ attempts = [] }) {
                     <p className="mt-3 max-w-2xl text-sm leading-6 text-auth-muted">{work.question_body}. {work.diagnoses.length} issue{work.diagnoses.length === 1 ? '' : 's'} tagged to your syllabus gaps.</p>
                 </div>
                 <PageSummary items={[
-                    { label: 'Result', value: work.needs_review ? 'Pending review' : work.is_correct ? 'Correct' : 'Practice needed' },
+                    { label: 'Result', value: work.teacher_marked ? 'Marked by teacher' : work.needs_review ? 'Pending review' : work.is_correct ? 'Correct' : 'Practice needed' },
                     ...(work.score !== null ? [{ label: 'Score', value: `${work.score}/${work.max_score}` }] : []),
                 ]} />
             </div>
@@ -87,10 +87,9 @@ function PracticeCard({ hasGaps }) {
 }
 
 /** Assignments the student hasn't submitted yet, nearest due date first. */
-export function DueSoonPage({ classroom, assignments = [], pastAttempts = [] }) {
-    const submittedQuestionIds = new Set(pastAttempts.map((attempt) => attempt.question_id));
+export function DueSoonPage({ classroom, assignments = [] }) {
     const notSubmitted = assignments
-        .filter((assignment) => !submittedQuestionIds.has(assignment.question_id))
+        .filter((assignment) => !assignment.submitted)
         .sort((a, b) => (a.due_at && b.due_at ? new Date(a.due_at) - new Date(b.due_at) : 0));
 
     if (!notSubmitted.length) return <div><PageHeader eyebrow="THIS TERM" title="Due work" description="Stay on top of your upcoming homework." /><div className="mt-6"><EmptyState title="You're all caught up" description="No homework is due right now." /></div></div>;

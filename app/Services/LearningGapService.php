@@ -101,7 +101,7 @@ class LearningGapService
 
         $recentWork = $homeworkAttempts->reverse()->take(2)->map(fn ($attempt) => [
             'id' => $attempt->id,
-            'mark' => $attempt->score,
+            'mark' => $attempt->effectiveScore(),
             'maximum' => $attempt->max_score,
             'title' => $attempt->skill?->name,
             'date' => $attempt->created_at,

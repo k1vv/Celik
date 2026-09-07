@@ -63,4 +63,10 @@ class Attempt extends Model
     {
         return $this->hasMany(AttemptDiagnosis::class);
     }
+
+    /** Whether a teacher has settled this answer's mark, overruling the AI's doubts. */
+    public function isTeacherMarked(): bool
+    {
+        return $this->teacher_score !== null && $this->submission?->teacher_validated_at !== null;
+    }
 }

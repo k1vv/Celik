@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Assignment;
 use App\Models\Attempt;
 use App\Models\Classroom;
 use App\Models\Question;
 use App\Models\Skill;
 use App\Models\Subject;
+use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -61,5 +63,30 @@ class StudentDashboardPageTest extends TestCase
             ->where('dashboardData.learningGaps', [])
             ->where('dashboardData.nextDue', null)
         );
+    }
+
+    public function test_next_due_skips_an_assignment_whose_pdf_was_processed_without_matching_any_answer(): void
+    {
+        $subject = Subject::create(['name' => 'Physics']);
+        $classroom = Classroom::create([
+            'teacher_id' => User::factory()->create(['role' => 'teacher'])->id,
+            'subject_id' => $subject->id,
+            'name' => 'Form 4 Physics',
+            'join_code' => 'PHYS01',
+        ]);
+        $student = User::factory()->create(['role' => 'student']);
+        $classroom->students()->attach($student);
+        $handedIn = Assignment::create(['classroom_id' => $classroom->id, 'title' => 'Homework 1', 'due_at' => now()->addDay()]);
+        Assignment::create(['classroom_id' => $classroom->id, 'title' => 'Homework 2', 'due_at' => now()->addWeek()]);
+        Submission::create([
+            'user_id' => $student->id,
+            'assignment_id' => $handedIn->id,
+            'photo_path' => 'homework-submissions/answers.pdf',
+            'extraction_status' => 'extracted',
+        ]);
+
+        $response = $this->actingAs($student)->get('/student/dashboard');
+
+        $response->assertInertia(fn ($page) => $page->where('dashboardData.nextDue.title', 'Homework 2'));
     }
 }
